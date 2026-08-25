@@ -299,6 +299,64 @@
           rgba(255, 255, 255, 0.6)
         );
       }
+      /* Wallpaper video layer */
+      #wallpaperVideo {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        z-index: -2;
+        display: none;
+        pointer-events: none;
+      }
+
+      /* Smooth wallpaper transition */
+      body {
+        transition: background-image 0.7s ease;
+      }
+
+      /* Dark overlay over wallpaper/video */
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.35);
+        z-index: -1;
+        pointer-events: none;
+      }
+      .icon-btn {
+        width: 46px;
+        height: 46px;
+        flex-shrink: 0;
+        border-radius: 50%;
+        background: linear-gradient(
+          135deg,
+          rgba(255, 255, 255, 0.55),
+          rgba(255, 255, 255, 0.25)
+        );
+        backdrop-filter: blur(22px) saturate(180%);
+        -webkit-backdrop-filter: blur(22px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.55);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        color: #1a1a1a;
+        transition: background 0.2s ease;
+      }
+      .icon-btn svg {
+        width: 20px;
+        height: 20px;
+      }
+      .icon-btn.flash {
+        background: linear-gradient(
+          135deg,
+          rgba(255, 255, 255, 0.9),
+          rgba(255, 255, 255, 0.6)
+        );
+      }
 
       #yt-player-container {
         position: absolute;
@@ -337,6 +395,7 @@
     </style>
   </head>
   <body>
+    <video id="wallpaperVideo" autoplay muted loop playsinline></video>
     <div class="site-title">Seedhe Maut</div>
 
     <div class="socials">
@@ -397,12 +456,7 @@
         <div class="player-top-row">
           <div class="art-wrap">
             <div class="vinyl-disc" id="vinylDisc"></div>
-            <img
-              class="album-art"
-              id="albumArt"
-              src="/images (3).jpg"
-              alt="Album art"
-            />
+            <img class="album-art" id="albumArt" src="" alt="Album art" />
           </div>
           <div class="track-title" id="trackTitle">Loading…</div>
           <div class="controls">
@@ -450,6 +504,35 @@
           <line x1="4" y1="4" x2="9" y2="9" />
         </svg>
       </button>
+      <button class="icon-btn" id="wallpaperBtn" aria-label="Change wallpaper">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <circle cx="8.5" cy="8.5" r="1.5" />
+          <polyline points="21 15 16 10 5 21" />
+        </svg>
+      </button>
+      <button class="icon-btn" id="tbsmAudioBtn" aria-label="Play TBSM audio">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+          <path d="M15.54 8.46a5 5 0 010 7.07" />
+          <path d="M19.07 4.93a10 10 0 010 14.14" />
+        </svg>
+      </button>
+      <audio id="tbsmAudio" preload="none"></audio>
     </div>
 
     <script>
@@ -637,6 +720,155 @@
       }
       document.addEventListener("click", unlockAudio);
       document.addEventListener("touchstart", unlockAudio);
+
+      // ================================================================
+      // WALLPAPERS — ADD YOUR OWN IMAGES / GIFS HERE
+      // ================================================================
+      // How to add a wallpaper:
+      // 1. Go to a free "image to base64" converter website, for example:
+      //    https://www.base64-image.de/  (works for images AND gifs)
+      // 2. Upload your picture or gif there. It will give you a long block
+      //    of text starting with something like:
+      //       data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD......
+      //    or for a gif:
+      //       data:image/gif;base64,R0lGODlhAQABAIAAAP.......
+      // 3. Copy that ENTIRE text (it can be very long, that's normal).
+      // 4. Paste it as a new line inside the WALLPAPERS list below,
+      //    with a comma at the end, wrapped in quotes, like this:
+      //
+      //    const WALLPAPERS = [
+      //      "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD......",   <-- existing background
+      //      "data:image/jpeg;base64,PASTE_YOUR_NEW_ONE_HERE......",      <-- your new wallpaper
+      //      "data:image/gif;base64,PASTE_A_GIF_HERE......",              <-- a gif works too
+      //    ];
+      //
+      // 5. Save the file and re-upload it to Netlify (or drag a fresh
+      //    index.html onto app.netlify.com/drop again) to go live.
+      //
+      // The very first item in the list is what shows when the page loads.
+      // Every time someone clicks the picture-frame button, it moves to
+      // the next item in the list, and loops back to the first after the
+      // last one.
+      // ================================================================
+      const WALLPAPERS = [
+        {
+          type: "image",
+          src: "/1.png",
+        },
+        {
+          type: "image",
+          src: "/2.jpg",
+        },
+        {
+          type: "image",
+          src: "/3.jpg",
+        },
+        {
+          type: "image",
+          src: "/4.jpg",
+        },
+
+        // Example video wallpaper
+        {
+          type: "image",
+          src: "/5.jpg",
+        },
+      ];
+
+      let wallpaperIndex = 0;
+      const wallpaperBtn = document.getElementById("wallpaperBtn");
+      const wallpaperVideo = document.getElementById("wallpaperVideo");
+
+      function changeWallpaper() {
+        wallpaperIndex++;
+
+        // Go back to first wallpaper after the last one
+        if (wallpaperIndex >= WALLPAPERS.length) {
+          wallpaperIndex = 0;
+        }
+
+        const wallpaper = WALLPAPERS[wallpaperIndex];
+
+        // Image wallpaper
+        if (wallpaper.type === "image") {
+          wallpaperVideo.pause();
+          wallpaperVideo.style.display = "none";
+
+          document.body.style.backgroundImage = `url("${wallpaper.src}")`;
+
+          document.body.style.backgroundSize = "cover";
+          document.body.style.backgroundPosition = "center";
+          document.body.style.backgroundRepeat = "no-repeat";
+          document.body.style.backgroundAttachment = "fixed";
+        }
+
+        // Video wallpaper
+        else if (wallpaper.type === "video") {
+          document.body.style.backgroundImage = "none";
+
+          wallpaperVideo.src = wallpaper.src;
+          wallpaperVideo.style.display = "block";
+
+          wallpaperVideo.currentTime = 0;
+          wallpaperVideo.play().catch(() => {});
+        }
+      }
+
+      wallpaperBtn.addEventListener("click", (e) => {
+        const btn = e.currentTarget;
+
+        btn.classList.add("flash");
+
+        setTimeout(() => {
+          btn.classList.remove("flash");
+        }, 250);
+
+        changeWallpaper();
+      });
+
+      // ================================================================
+      // TBSM AUDIO — ADD YOUR AUDIO FILE HERE (once you have it)
+      // ================================================================
+      // How to add the audio:
+      // 1. Go to a free "audio to base64" converter website, for example:
+      //    https://base64.guru/converter/encode/audio
+      // 2. Upload your mp3 file there. It will give you a long block of
+      //    text starting with something like:
+      //       data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAAA......
+      // 3. Copy that ENTIRE text.
+      // 4. Paste it below, replacing the empty quotes "" , like this:
+      //
+      //    const TBSM_AUDIO_SRC = "data:audio/mpeg;base64,SUQzBAAAAAAA......";
+      //
+      // 5. Save and re-upload to Netlify to go live. The button will then
+      //    play your audio each time it's clicked (and pause if clicked
+      //    again while playing).
+      // ================================================================
+      const TBSM_AUDIO_SRC = ""; // 👈 paste your base64 audio here, inside the quotes
+
+      const tbsmAudioEl = document.getElementById("tbsmAudio");
+      if (TBSM_AUDIO_SRC) {
+        tbsmAudioEl.src = TBSM_AUDIO_SRC;
+      }
+
+      document.getElementById("tbsmAudioBtn").addEventListener("click", (e) => {
+        const btn = e.currentTarget;
+        btn.classList.add("flash");
+        setTimeout(() => btn.classList.remove("flash"), 250);
+
+        if (!TBSM_AUDIO_SRC) {
+          console.log(
+            "No TBSM audio added yet — see the TBSM_AUDIO_SRC instructions in the code.",
+          );
+          return;
+        }
+        if (tbsmAudioEl.paused) {
+          tbsmAudioEl.currentTime = 0;
+          tbsmAudioEl.play();
+        } else {
+          tbsmAudioEl.pause();
+        }
+      });
     </script>
   </body>
 </html>
