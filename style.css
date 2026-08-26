@@ -143,6 +143,24 @@ body::before {
   gap: 12px;
 }
 
+.track-title {
+  flex: 1;
+  min-width: 0;
+
+  /* THIS creates the extra space after album artwork */
+  margin-left: 20px;
+
+  font-weight: 700;
+  font-size: 0.98rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#songTitle {
+  margin-left: 5px;
+  white-space: nowrap;
+}
 .art-wrap {
   position: relative;
   width: 60px;

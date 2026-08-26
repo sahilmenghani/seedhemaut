@@ -63,22 +63,43 @@ setInterval(updateTime, 1000);
 }
 function switchAlbum(index) {
 
-  if (!player || !player.loadPlaylist) return;
+  if (!playerReady) {
+    console.log("Player is not ready yet.");
+    return;
+  }
 
-  if (index < 0 || index >= ALBUMS.length) return;
+  if (!ALBUMS[index]) {
+    console.log("Album not found.");
+    return;
+  }
 
   currentAlbumIndex = index;
 
-  const album = ALBUMS[currentAlbumIndex];
+  const album = ALBUMS[index];
 
-  player.loadPlaylist({
-    list: album.playlistId,
-    listType: "playlist",
-    index: 0,
-    startSeconds: 0
-  });
+  console.log("Switching to:", album.name);
+  console.log("Playlist ID:", album.playlistId);
 
-  console.log("Now playing album:", album.name);
+  // Unlock audio immediately from the user's click
+  if (!audioUnlocked) {
+    player.unMute();
+    player.setVolume(100);
+    audioUnlocked = true;
+  }
+
+  // Load the playlist directly
+  player.loadPlaylist(
+    album.playlistId,
+    0,
+    0
+  );
+
+  // Start playing
+  setTimeout(() => {
+    if (playerReady) {
+      player.playVideo();
+    }
+  }, 150);
 }
         const ALBUMS = [
   {
