@@ -29,69 +29,7 @@ setInterval(updateTime, 1000);
       let progressInterval = null;
       let currentVideoId = null;
 let switchingAlbum = false;
-
-      // Load YouTube IFrame API
-      const tag = document.createElement("script");
-      tag.src = "https://www.youtube.com/iframe_api";
-      document.head.appendChild(tag);
-
-    // ================================================================
-// ALBUMS / PLAYLISTS
-// ================================================================
-   function onYouTubeIframeAPIReady() {
-
-  player = new YT.Player("yt-player", {
-
-    height: "1",
-    width: "1",
-
-    playerVars: {
-      listType: "playlist",
-      list: ALBUMS[currentAlbumIndex].playlistId,
-      autoplay: 1,
-      mute: 1,
-      controls: 0,
-      playsinline: 1
-    },
-
-    events: {
-      onReady: onPlayerReady,
-      onStateChange: onPlayerStateChange
-    }
-
-  });
-
-}
-function switchAlbum(index) {
-
-  if (!playerReady || !player) {
-    console.log("Player is not ready");
-    return;
-  }
-
-  const album = ALBUMS[index];
-
-  if (!album) {
-    console.log("Album not found:", index);
-    return;
-  }
-
-  currentAlbumIndex = index;
-
-  console.log("SWITCHING TO:", album.name);
-  console.log("PLAYLIST:", album.playlistId);
-
-  // Remember that we are changing albums
-  switchingAlbum = true;
-
-  // Load the new playlist
-  player.loadPlaylist(
-    album.playlistId,
-    0,
-    0
-  );
-}
-        const ALBUMS = [
+ const ALBUMS = [
   {
     name: "Lunch Break",
     playlistId: PLAYLIST_ID
@@ -136,6 +74,70 @@ function switchAlbum(index) {
 
 let currentAlbumIndex = 0;
       
+      // Load YouTube IFrame API
+      const tag = document.createElement("script");
+      tag.src = "https://www.youtube.com/iframe_api";
+      document.head.appendChild(tag);
+
+    // ================================================================
+// ALBUMS / PLAYLISTS
+// ================================================================
+   function onYouTubeIframeAPIReady() {
+
+  player = new YT.Player("yt-player", {
+
+    height: "1",
+    width: "1",
+
+    playerVars: {
+      listType: "playlist",
+      list: ALBUMS[currentAlbumIndex].playlistId,
+      autoplay: 1,
+      mute: 1,
+      controls: 0,
+      playsinline: 1
+    },
+
+    events: {
+      onReady: onPlayerReady,
+      onStateChange: onPlayerStateChange
+    }
+
+  });
+
+}
+function switchAlbum(index) {
+
+  if (!playerReady || !player) {
+    console.log("Player not ready");
+    return;
+  }
+
+  const album = ALBUMS[index];
+
+  if (!album) {
+    console.log("Invalid album:", index);
+    return;
+  }
+
+  console.log("Switching to:", album.name);
+  console.log("Playlist:", album.playlistId);
+
+  currentAlbumIndex = index;
+  switchingAlbum = true;
+
+  try {
+    player.loadPlaylist({
+      listType: "playlist",
+      list: album.playlistId,
+      index: 0
+    });
+
+  } catch (error) {
+    console.error("Album switch error:", error);
+    switchingAlbum = false;
+  }
+}   
 
 window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
 
@@ -143,9 +145,6 @@ window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
 // ================================================================
 // SWITCH ALBUM
 // ================================================================
-
-      
-      window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
 
       function onPlayerReady(event) {
         playerReady = true;
@@ -164,7 +163,6 @@ function onPlayerStateChange(event) {
     updateNowPlayingInfo();
 
     switchingAlbum = false;
-
   }
 
   else if (state === YT.PlayerState.PAUSED) {
@@ -183,21 +181,18 @@ function onPlayerStateChange(event) {
 
     updateNowPlayingInfo();
 
-    // New album has finished loading
     if (switchingAlbum) {
 
       setTimeout(() => {
 
-        if (playerReady) {
-          player.playVideo();
-        }
+        if (!playerReady || !player) return;
 
-      }, 100);
+        player.playVideo();
+
+      }, 300);
 
     }
-
   }
-
 }
       function setPlayingUI(isPlaying) {
         const playIcon = document.getElementById("playIcon");
