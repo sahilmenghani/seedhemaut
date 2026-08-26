@@ -1,4 +1,26 @@
+// ================================================================
+// LIVE TIME
+// ================================================================
 
+function updateTime() {
+  const timeElement = document.getElementById("currentTime");
+
+  if (!timeElement) return;
+
+  const now = new Date();
+
+  timeElement.textContent = now.toLocaleTimeString("en-IN", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+// Update immediately
+updateTime();
+
+// Update every second
+setInterval(updateTime, 1000);
       const PLAYLIST_ID = "PL6Z5nmGOBNaB5M2YKMaVfMlrzwqGVZecK";
 
       let player;
@@ -15,34 +37,7 @@
     // ================================================================
 // ALBUMS / PLAYLISTS
 // ================================================================
-
-const ALBUMS = [
-  {
-    name: "Lunch Break",
-    playlistId: PLAYLIST_ID
-  },
-  {
-    name: "Nayaab",
-    playlistId: "PLVhh-pNjr3-A"
-  },
-  {
-    name: "Bayaan",
-    playlistId: "PLkEICesI2qi4XQwD9IxUNXzRgmMnJ_ucE"
-  },
-  {
-    name: "न",
-    playlistId: "PLaT0GyWvzyqijYNsKTo9mna6Txzt8qovn"
-  }
-];
-
-let currentAlbumIndex = 0;
-
-
-// ================================================================
-// YOUTUBE PLAYER
-// ================================================================
-
-function onYouTubeIframeAPIReady() {
+   function onYouTubeIframeAPIReady() {
 
   player = new YT.Player("yt-player", {
 
@@ -66,6 +61,42 @@ function onYouTubeIframeAPIReady() {
   });
 
 }
+function switchAlbum(index) {
+
+  if (!player || !player.loadPlaylist) return;
+
+  if (index < 0 || index >= ALBUMS.length) return;
+
+  currentAlbumIndex = index;
+
+  const album = ALBUMS[currentAlbumIndex];
+
+  player.loadPlaylist({
+    list: album.playlistId,
+    listType: "playlist",
+    index: 0,
+    startSeconds: 0
+  });
+
+  console.log("Now playing album:", album.name);
+}
+        const ALBUMS = [
+  {
+    name: "Current Album",
+    playlistId: PLAYLIST_ID
+  },
+  {
+    name: "Nayaab",
+    playlistId: "PLVhh-pNjr3-A"
+  },
+  {
+    name: "Bayaan",
+    playlistId: "PLkEICesI2qi4XQwD9IxUNXzRgmMnJ_ucE"
+  }
+];
+
+let currentAlbumIndex = 0;
+      
 
 window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
 
