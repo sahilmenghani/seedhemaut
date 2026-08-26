@@ -28,6 +28,7 @@ setInterval(updateTime, 1000);
       let audioUnlocked = false;
       let progressInterval = null;
       let currentVideoId = null;
+let switchingAlbum = false;
 
       // Load YouTube IFrame API
       const tag = document.createElement("script");
@@ -63,43 +64,32 @@ setInterval(updateTime, 1000);
 }
 function switchAlbum(index) {
 
-  if (!playerReady) {
-    console.log("Player is not ready yet.");
+  if (!playerReady || !player) {
+    console.log("Player is not ready");
     return;
   }
 
-  if (!ALBUMS[index]) {
-    console.log("Album not found.");
+  const album = ALBUMS[index];
+
+  if (!album) {
+    console.log("Album not found:", index);
     return;
   }
 
   currentAlbumIndex = index;
 
-  const album = ALBUMS[index];
+  console.log("SWITCHING TO:", album.name);
+  console.log("PLAYLIST:", album.playlistId);
 
-  console.log("Switching to:", album.name);
-  console.log("Playlist ID:", album.playlistId);
+  // Remember that we are changing albums
+  switchingAlbum = true;
 
-  // Unlock audio immediately from the user's click
-  if (!audioUnlocked) {
-    player.unMute();
-    player.setVolume(100);
-    audioUnlocked = true;
-  }
-
-  // Load the playlist directly
+  // Load the new playlist
   player.loadPlaylist(
     album.playlistId,
     0,
     0
   );
-
-  // Start playing
-  setTimeout(() => {
-    if (playerReady) {
-      player.playVideo();
-    }
-  }, 150);
 }
         const ALBUMS = [
   {
@@ -164,21 +154,51 @@ window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
         updateNowPlayingInfo();
         startProgressLoop();
       }
+function onPlayerStateChange(event) {
 
-      function onPlayerStateChange(event) {
-        const state = event.data;
-        if (state === YT.PlayerState.PLAYING) {
-          setPlayingUI(true);
-          updateNowPlayingInfo();
-        } else if (state === YT.PlayerState.PAUSED) {
-          setPlayingUI(false);
-        } else if (state === YT.PlayerState.ENDED) {
-          player.nextVideo();
-        } else if (state === YT.PlayerState.CUED) {
-          updateNowPlayingInfo();
+  const state = event.data;
+
+  if (state === YT.PlayerState.PLAYING) {
+
+    setPlayingUI(true);
+    updateNowPlayingInfo();
+
+    switchingAlbum = false;
+
+  }
+
+  else if (state === YT.PlayerState.PAUSED) {
+
+    setPlayingUI(false);
+
+  }
+
+  else if (state === YT.PlayerState.ENDED) {
+
+    player.nextVideo();
+
+  }
+
+  else if (state === YT.PlayerState.CUED) {
+
+    updateNowPlayingInfo();
+
+    // New album has finished loading
+    if (switchingAlbum) {
+
+      setTimeout(() => {
+
+        if (playerReady) {
+          player.playVideo();
         }
-      }
 
+      }, 100);
+
+    }
+
+  }
+
+}
       function setPlayingUI(isPlaying) {
         const playIcon = document.getElementById("playIcon");
         const disc = document.getElementById("vinylDisc");
