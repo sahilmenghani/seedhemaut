@@ -106,7 +106,6 @@ let currentAlbumIndex = 0;
 
 }
 function switchAlbum(index) {
-
   if (!playerReady || !player) {
     console.log("Player not ready");
     return;
@@ -129,7 +128,24 @@ function switchAlbum(index) {
     index: 0,
     startSeconds: 0
   });
-} 
+
+  // Update library immediately
+  const albumName = document.getElementById("libraryAlbumName");
+
+  if (albumName) {
+    albumName.textContent = album.name;
+  }
+
+  // Update active sidebar item
+  document.querySelectorAll(".album-item").forEach((item, i) => {
+    item.classList.toggle("active", i === index);
+  });
+
+  // Load songs after YouTube playlist loads
+  setTimeout(() => {
+    renderLibrarySongs(index);
+  }, 500);
+}
 
 window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
 
@@ -527,4 +543,255 @@ function onPlayerStateChange(event) {
           tbsmAudioEl.pause();
         }
       });
-    
+    // ================================================================
+// MUSIC LIBRARY
+// ================================================================
+
+const libraryBtn = document.getElementById("libraryBtn");
+const libraryClose = document.getElementById("libraryClose");
+const libraryOverlay = document.getElementById("libraryOverlay");
+const musicLibrary = document.getElementById("musicLibrary");
+
+function openLibrary() {
+  musicLibrary.classList.add("open");
+  libraryOverlay.classList.add("open");
+
+  // Load album list when opening
+  renderAlbums();
+}
+
+function closeLibrary() {
+  musicLibrary.classList.remove("open");
+  libraryOverlay.classList.remove("open");
+}
+
+libraryBtn.addEventListener("click", openLibrary);
+libraryClose.addEventListener("click", closeLibrary);
+libraryOverlay.addEventListener("click", closeLibrary);
+
+// ESC key closes library
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    closeLibrary();
+  }
+});
+
+
+// ================================================================
+// RENDER ALBUMS
+// ================================================================
+
+function renderAlbums() {
+  const albumList = document.getElementById("albumList");
+
+  if (!albumList) return;
+
+  albumList.innerHTML = "";
+
+  ALBUMS.forEach((album, index) => {
+    const albumItem = document.createElement("div");
+
+    albumItem.className =
+      "album-item" +
+      (index === currentAlbumIndex ? " active" : "");
+
+    albumItem.innerHTML = `
+      <span class="album-number">
+        ${String(index + 1).padStart(2, "0")}
+      </span>
+
+      <span class="album-name">
+        ${album.name}
+      </span>
+    `;
+
+    albumItem.addEventListener("click", () => {
+      selectLibraryAlbum(index);
+    });
+
+    albumList.appendChild(albumItem);
+  });
+
+  // Show current album
+  renderLibrarySongs(currentAlbumIndex);
+}
+
+
+// ================================================================
+// SELECT ALBUM FROM LIBRARY
+// ================================================================
+
+function selectLibraryAlbum(index) {
+  const album = ALBUMS[index];
+
+  if (!album) return;
+
+  currentAlbumIndex = index;
+
+  // Update active album
+  document.querySelectorAll(".album-item").forEach((item, i) => {
+    item.classList.toggle("active", i === index);
+  });
+
+  // Change album title
+  document.getElementById("libraryAlbumName").textContent =
+    album.name;
+
+  // Load the album immediately
+  switchAlbum(index);
+
+  // Show songs
+  renderLibrarySongs(index);
+}
+
+
+// ================================================================
+// RENDER SONGS
+// ================================================================
+
+function renderLibrarySongs(index) {
+  const songList = document.getElementById("librarySongList");
+  const albumName = document.getElementById("libraryAlbumName");
+
+  if (!songList) return;
+
+  const album = ALBUMS[index];
+
+  if (!album) {
+    songList.innerHTML =
+      '<div class="library-empty">Select an album</div>';
+    return;
+  }
+
+  albumName.textContent = album.name;
+
+  songList.innerHTML = `
+    <div class="library-empty">
+      Loading songs...
+    </div>
+  `;
+
+  // Give YouTube a moment to load playlist
+  setTimeout(() => {
+    if (!playerReady || !player) return;
+
+    try {
+      const playlist = player.getPlaylist();
+
+      if (!playlist || playlist.length === 0) {
+        songList.innerHTML = `
+          <div class="library-empty">
+            No songs found
+          </div>
+        `;
+        return;
+      }
+
+      songList.innerHTML = "";
+
+      playlist.forEach((videoId, songIndex) => {
+        const song = document.createElement("div");
+
+        song.className = "library-song";
+
+        song.innerHTML = `
+          <div class="library-song-number">
+            ${String(songIndex + 1).padStart(2, "0")}
+          </div>
+
+          <div class="library-cover">
+            <img
+              src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg"
+              alt=""
+            >
+          </div>
+
+          <div class="library-song-info">
+            <div class="library-song-title">
+              Loading...
+            </div>
+
+            <div class="library-song-artist">
+              Seedhe Maut
+            </div>
+          </div>
+        `;
+
+        song.addEventListener("click", () => {
+          if (!playerReady || !player) return;
+
+          player.playVideoAt(songIndex);
+
+          updateNowPlayingInfo();
+
+          // Close library after selecting song
+          closeLibrary();
+        });
+
+        songList.appendChild(song);
+
+        // Get YouTube title
+        try {
+          const tempPlayer = player;
+
+          // If this is the current video, show its title
+          if (
+            tempPlayer.getPlaylistIndex() === songIndex &&
+            tempPlayer.getVideoData()
+          ) {
+            const data = tempPlayer.getVideoData();
+
+            const titleElement =
+              song.querySelector(".library-song-title");
+
+            if (data.title) {
+              titleElement.textContent = data.title;
+            }
+          }
+        } catch (e) {}
+      });
+
+      // Try loading actual titles
+      loadLibrarySongTitles();
+
+    } catch (error) {
+      console.error("Library error:", error);
+
+      songList.innerHTML = `
+        <div class="library-empty">
+          Unable to load songs
+        </div>
+      `;
+    }
+  }, 300);
+}
+
+
+// ================================================================
+// UPDATE SONG TITLES
+// ================================================================
+
+function loadLibrarySongTitles() {
+  if (!playerReady || !player) return;
+
+  const songs = document.querySelectorAll(".library-song");
+
+  songs.forEach((song, index) => {
+    try {
+      const currentIndex = player.getPlaylistIndex();
+
+      if (currentIndex === index) {
+        const data = player.getVideoData();
+
+        if (data && data.title) {
+          const title =
+            song.querySelector(".library-song-title");
+
+          if (title) {
+            title.textContent = data.title;
+          }
+        }
+      }
+    } catch (e) {}
+  });
+}

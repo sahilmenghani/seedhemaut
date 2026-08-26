@@ -37,6 +37,528 @@ body::before {
   z-index: 0;
   pointer-events: none;
 }
+/* ================================================================
+   MUSIC LIBRARY BUTTON
+================================================================ */
+
+.library-btn {
+  position: fixed;
+
+  top: 78px;
+  left: 24px;
+
+  height: 52px;
+
+  padding: 0 20px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 10px;
+
+  color: white;
+
+  background: rgba(20, 20, 20, 0.48);
+
+  border: 1px solid rgba(255, 255, 255, 0.18);
+
+  border-radius: 18px;
+
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+
+  cursor: pointer;
+
+  z-index: 20;
+
+  transition:
+    transform 0.25s ease,
+    background 0.25s ease;
+}
+
+.library-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+
+  transform: translateY(-2px);
+}
+
+.library-btn svg {
+  width: 21px;
+  height: 21px;
+}
+
+/* ================================================================
+   OVERLAY
+================================================================ */
+
+.library-overlay {
+  position: fixed;
+
+  inset: 0;
+
+  background: rgba(0, 0, 0, 0.25);
+
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+
+  opacity: 0;
+
+  pointer-events: none;
+
+  transition: opacity 0.35s ease;
+
+  z-index: 29;
+}
+
+.library-overlay.open {
+  opacity: 1;
+
+  pointer-events: auto;
+}
+
+/* ================================================================
+   LIBRARY PANEL
+================================================================ */
+
+.music-library {
+  position: fixed;
+
+  top: 0;
+  left: 50%;
+
+  width: min(1050px, 92vw);
+
+  height: min(620px, 82vh);
+
+  transform: translate(-50%, -105%);
+
+  background: rgba(15, 15, 15, 0.72);
+
+  border: 1px solid rgba(255, 255, 255, 0.18);
+
+  border-top: none;
+
+  border-radius: 0 0 30px 30px;
+
+  box-shadow:
+    0 30px 100px rgba(0, 0, 0, 0.65),
+    inset 0 1px rgba(255, 255, 255, 0.14);
+
+  backdrop-filter: blur(35px) saturate(140%);
+
+  -webkit-backdrop-filter: blur(35px) saturate(140%);
+
+  overflow: hidden;
+
+  z-index: 30;
+
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.music-library.open {
+  transform: translate(-50%, 0);
+}
+
+/* ================================================================
+   HANDLE
+================================================================ */
+
+.library-handle {
+  position: absolute;
+
+  top: 12px;
+
+  left: 50%;
+
+  transform: translateX(-50%);
+
+  width: 52px;
+  height: 5px;
+
+  border-radius: 10px;
+
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* ================================================================
+   HEADER
+================================================================ */
+
+.library-header {
+  height: 105px;
+
+  padding: 32px 28px 18px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.library-label {
+  color: rgba(255, 255, 255, 0.48);
+
+  font-size: 10px;
+
+  letter-spacing: 2px;
+
+  font-weight: 600;
+}
+
+.library-header h2 {
+  margin-top: 5px;
+
+  font-size: 25px;
+
+  font-weight: 500;
+}
+
+.library-close {
+  width: 42px;
+  height: 42px;
+
+  border-radius: 50%;
+
+  border: 1px solid rgba(255, 255, 255, 0.15);
+
+  background: rgba(255, 255, 255, 0.05);
+
+  color: white;
+
+  font-size: 26px;
+
+  cursor: pointer;
+
+  transition: 0.2s ease;
+}
+
+.library-close:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* ================================================================
+   CONTENT
+================================================================ */
+
+.library-content {
+  height: calc(100% - 105px);
+
+  display: flex;
+}
+
+/* ================================================================
+   SIDEBAR
+================================================================ */
+
+.library-sidebar {
+  width: 280px;
+
+  padding: 25px 15px;
+
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+
+  overflow-y: auto;
+}
+
+.sidebar-title {
+  padding: 0 15px 12px;
+
+  color: rgba(255, 255, 255, 0.42);
+
+  font-size: 10px;
+
+  letter-spacing: 2px;
+}
+
+.album-list {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 4px;
+}
+
+.album-item {
+  width: 100%;
+
+  min-height: 48px;
+
+  padding: 0 15px;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 12px;
+
+  border-radius: 13px;
+
+  color: #cfcfcf;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.album-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+
+  color: white;
+}
+
+.album-item.active {
+  background: rgba(255, 255, 255, 0.14);
+
+  color: white;
+}
+
+.album-number {
+  width: 22px;
+
+  color: rgba(255, 255, 255, 0.35);
+
+  font-size: 11px;
+}
+
+.album-name {
+  font-size: 14px;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+}
+
+/* ================================================================
+   SONG AREA
+================================================================ */
+
+.library-songs {
+  flex: 1;
+
+  min-width: 0;
+
+  padding: 25px 25px 20px;
+}
+
+.songs-header {
+  padding: 0 5px 18px;
+
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.songs-header h3 {
+  margin-top: 5px;
+
+  font-size: 22px;
+
+  font-weight: 500;
+}
+
+.library-song-list {
+  height: calc(100% - 75px);
+
+  overflow-y: auto;
+
+  padding-top: 8px;
+}
+
+/* ================================================================
+   SONG
+================================================================ */
+
+.library-song {
+  min-height: 65px;
+
+  padding: 7px 10px;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 14px;
+
+  border-radius: 13px;
+
+  cursor: pointer;
+
+  transition: background 0.25s ease;
+}
+
+.library-song:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.library-song.active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.library-cover {
+  width: 50px;
+  height: 50px;
+
+  flex-shrink: 0;
+
+  border-radius: 8px;
+
+  overflow: hidden;
+
+  background: linear-gradient(135deg, #333, #080808);
+
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.library-cover img {
+  width: 100%;
+  height: 100%;
+
+  object-fit: cover;
+}
+
+.library-song-info {
+  min-width: 0;
+}
+
+.library-song-title {
+  font-size: 14px;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+}
+
+.library-song-artist {
+  margin-top: 5px;
+
+  color: rgba(255, 255, 255, 0.45);
+
+  font-size: 12px;
+}
+
+.library-song-number {
+  width: 25px;
+
+  color: rgba(255, 255, 255, 0.35);
+
+  font-size: 11px;
+}
+
+/* ================================================================
+   EMPTY STATE
+================================================================ */
+
+.library-empty {
+  height: 100%;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  color: rgba(255, 255, 255, 0.35);
+
+  font-size: 14px;
+}
+
+/* ================================================================
+   SCROLLBAR
+================================================================ */
+
+.library-sidebar::-webkit-scrollbar,
+.library-song-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.library-sidebar::-webkit-scrollbar-thumb,
+.library-song-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+
+  border-radius: 10px;
+}
+
+/* ================================================================
+   MOBILE
+================================================================ */
+
+@media (max-width: 700px) {
+  .library-btn {
+    top: 62px;
+
+    left: 15px;
+
+    height: 46px;
+
+    padding: 0 15px;
+
+    border-radius: 15px;
+  }
+
+  .library-btn span {
+    display: none;
+  }
+
+  .music-library {
+    width: 96vw;
+
+    height: 82vh;
+
+    border-radius: 0 0 24px 24px;
+  }
+
+  .library-sidebar {
+    width: 125px;
+
+    padding: 22px 8px;
+  }
+
+  .album-item {
+    min-height: 43px;
+
+    padding: 0 9px;
+  }
+
+  .album-number {
+    display: none;
+  }
+
+  .album-name {
+    font-size: 11px;
+  }
+
+  .library-songs {
+    padding: 22px 10px 15px;
+  }
+
+  .library-header {
+    padding: 32px 18px 18px;
+  }
+
+  .library-header h2 {
+    font-size: 21px;
+  }
+
+  .library-song {
+    gap: 8px;
+
+    padding: 6px 4px;
+  }
+
+  .library-cover {
+    width: 44px;
+    height: 44px;
+  }
+}
 .live-status {
   position: fixed;
   top: 24px;
