@@ -310,113 +310,6 @@ async function getYouTubeVideoInfo(videoId) {
 // RENDER LIBRARY SONGS
 // ================================================================
 
-async function renderLibrarySongs() {
-
-  if (!playerReady || !player) return;
-
-  const songList = document.getElementById("librarySongList");
-  const albumName = document.getElementById("libraryAlbumName");
-
-  if (!songList) return;
-
-  const album = ALBUMS[currentAlbumIndex];
-
-  if (albumName) {
-    albumName.textContent = album.name;
-  }
-
-  songList.innerHTML = `
-    <div class="library-empty">
-      Loading songs...
-    </div>
-  `;
-
-  let playlist = [];
-
-  try {
-    playlist = player.getPlaylist() || [];
-  } catch (error) {
-    console.error("Could not get playlist:", error);
-    return;
-  }
-
-  if (!playlist.length) {
-    songList.innerHTML = `
-      <div class="library-empty">
-        No songs found
-      </div>
-    `;
-    return;
-  }
-
-  // Create all song rows immediately
-  songList.innerHTML = "";
-
-  playlist.forEach((videoId, index) => {
-
-    const song = document.createElement("div");
-
-    song.className = "library-song";
-
-    song.innerHTML = `
-      <div class="library-song-number">
-        ${String(index + 1).padStart(2, "0")}
-      </div>
-
-      <div class="library-cover">
-        <img
-          src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg"
-          alt=""
-        >
-      </div>
-
-      <div class="library-song-info">
-
-        <div class="library-song-title">
-          Loading...
-        </div>
-
-        <div class="library-song-artist">
-          Seedhe Maut
-        </div>
-
-      </div>
-    `;
-
-    song.addEventListener("click", () => {
-
-      if (!playerReady || !player) return;
-
-      player.playVideoAt(index);
-
-      updateLibraryActiveSong(index);
-    });
-
-    songList.appendChild(song);
-
-    // Fetch title independently
-    getYouTubeVideoInfo(videoId).then(info => {
-
-      const titleElement =
-        song.querySelector(".library-song-title");
-
-      const artistElement =
-        song.querySelector(".library-song-artist");
-
-      if (titleElement) {
-        titleElement.textContent = info.title;
-      }
-
-      if (artistElement) {
-        artistElement.textContent = info.artist;
-      }
-
-    });
-
-  });
-
-  updateLibraryActiveSong(player.getPlaylistIndex());
-}
 
 
 // ================================================================
@@ -764,30 +657,51 @@ function renderAlbums() {
 // ================================================================
 // SELECT ALBUM FROM LIBRARY
 // ================================================================
+// ================================================================
+// SELECT ALBUM FROM LIBRARY
+// ================================================================
 
-function selectLibraryAlbum(index) {
+async function selectLibraryAlbum(index) {
+
   const album = ALBUMS[index];
 
   if (!album) return;
 
   currentAlbumIndex = index;
 
-  // Update active album
+  // Update active album immediately
   document.querySelectorAll(".album-item").forEach((item, i) => {
+
     item.classList.toggle("active", i === index);
+
   });
 
-  // Change album title
-  document.getElementById("libraryAlbumName").textContent =
-    album.name;
+  // Update album title immediately
+  const albumName =
+    document.getElementById("libraryAlbumName");
 
-  // Load the album immediately
+  if (albumName) {
+    albumName.textContent = album.name;
+  }
+
+  // Show loading immediately
+  const songList =
+    document.getElementById("librarySongList");
+
+  if (songList) {
+    songList.innerHTML = `
+      <div class="library-empty">
+        Loading songs...
+      </div>
+    `;
+  }
+
+  // Change YouTube playlist
   switchAlbum(index);
 
-  // Show songs
-  renderLibrarySongs(index);
+  // Wait for new playlist and render it
+  await renderLibrarySongs(index);
 }
-
 
 // ================================================================
 // RENDER SONGS
@@ -914,28 +828,173 @@ function renderLibrarySongs(index) {
 // ================================================================
 // UPDATE SONG TITLES
 // ================================================================
+// ================================================================
+// RENDER SONGS IN MUSIC LIBRARY
+// ================================================================
 
-function loadLibrarySongTitles() {
-  if (!playerReady || !player) return;
+async function renderLibrarySongs(index) {
 
-  const songs = document.querySelectorAll(".library-song");
+  const songList = document.getElementById("librarySongList");
+  const albumName = document.getElementById("libraryAlbumName");
 
-  songs.forEach((song, index) => {
+  if (!songList) return;
+
+  const album = ALBUMS[index];
+
+  if (!album) {
+    songList.innerHTML =
+      '<div class="library-empty">Select an album</div>';
+    return;
+  }
+
+  if (albumName) {
+    albumName.textContent = album.name;
+  }
+
+  // Show loading while YouTube changes playlist
+  songList.innerHTML = `
+    <div class="library-empty">
+      Loading songs...
+    </div>
+  `;
+
+  // ================================================================
+  // WAIT FOR YOUTUBE PLAYLIST TO ACTUALLY LOAD
+  // ================================================================
+
+  let playlist = [];
+  let attempts = 0;
+
+  while (attempts < 40) {
+
+    if (!playerReady || !player) return;
+
     try {
-      const currentIndex = player.getPlaylistIndex();
+      playlist = player.getPlaylist() || [];
 
-      if (currentIndex === index) {
-        const data = player.getVideoData();
-
-        if (data && data.title) {
-          const title =
-            song.querySelector(".library-song-title");
-
-          if (title) {
-            title.textContent = data.title;
-          }
-        }
+      if (playlist.length > 0) {
+        break;
       }
-    } catch (e) {}
+
+    } catch (error) {
+      console.log("Waiting for playlist...");
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 150));
+
+    attempts++;
+  }
+
+  // ================================================================
+  // NO PLAYLIST
+  // ================================================================
+
+  if (!playlist.length) {
+
+    songList.innerHTML = `
+      <div class="library-empty">
+        No songs found
+      </div>
+    `;
+
+    return;
+  }
+
+  // ================================================================
+  // CREATE ALL SONG ROWS
+  // ================================================================
+
+  songList.innerHTML = "";
+
+  playlist.forEach((videoId, songIndex) => {
+
+    const song = document.createElement("div");
+
+    song.className = "library-song";
+
+    song.innerHTML = `
+      <div class="library-song-number">
+        ${String(songIndex + 1).padStart(2, "0")}
+      </div>
+
+      <div class="library-cover">
+        <img
+          src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg"
+          alt=""
+        >
+      </div>
+
+      <div class="library-song-info">
+
+        <div class="library-song-title">
+          Loading...
+        </div>
+
+        <div class="library-song-artist">
+          Seedhe Maut
+        </div>
+
+      </div>
+    `;
+
+    // ================================================================
+    // CLICK SONG
+    // ================================================================
+
+    song.addEventListener("click", () => {
+
+      if (!playerReady || !player) return;
+
+      player.playVideoAt(songIndex);
+
+      updateLibraryActiveSong(songIndex);
+
+      updateNowPlayingInfo();
+
+      closeLibrary();
+
+    });
+
+    songList.appendChild(song);
+
+    // ================================================================
+    // GET TITLE FOR EVERY SONG
+    // ================================================================
+
+    getYouTubeVideoInfo(videoId).then(info => {
+
+      const titleElement =
+        song.querySelector(".library-song-title");
+
+      const artistElement =
+        song.querySelector(".library-song-artist");
+
+      if (titleElement) {
+        titleElement.textContent = info.title;
+      }
+
+      if (artistElement) {
+        artistElement.textContent = info.artist;
+      }
+
+    });
+
   });
+
+  // ================================================================
+  // HIGHLIGHT CURRENT SONG
+  // ================================================================
+
+  try {
+
+    const currentIndex = player.getPlaylistIndex();
+
+    updateLibraryActiveSong(currentIndex);
+
+  } catch (error) {
+
+    console.log("Could not get current playlist index");
+
+  }
+
 }
