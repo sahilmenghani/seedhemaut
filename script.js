@@ -63,6 +63,10 @@ function switchAlbum(index) {
   {
     name: "Nayaab",
     playlistId: "PLVhh-pNjr3-A"
+  },
+  {
+    name: "Bayaan",
+    playlistId: "PLkEICesI2qi4XQwD9IxUNXzRgmMnJ_ucE"
   }
 ];
 
