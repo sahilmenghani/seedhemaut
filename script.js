@@ -28,7 +28,6 @@ setInterval(updateTime, 1000);
       let audioUnlocked = false;
       let progressInterval = null;
       let currentVideoId = null;
-let switchingAlbum = false;
  const ALBUMS = [
   {
     name: "Lunch Break",
