@@ -106,6 +106,7 @@ let currentAlbumIndex = 0;
 
 }
 function switchAlbum(index) {
+
   if (!playerReady || !player) {
     console.log("Player not ready");
     return;
@@ -128,25 +129,7 @@ function switchAlbum(index) {
     index: 0,
     startSeconds: 0
   });
-
-  // Update library immediately
-  const albumName = document.getElementById("libraryAlbumName");
-
-  if (albumName) {
-    albumName.textContent = album.name;
-  }
-
-  // Update active sidebar item
-  document.querySelectorAll(".album-item").forEach((item, i) => {
-    item.classList.toggle("active", i === index);
-  });
-
-  // Load songs after YouTube playlist loads
-  setTimeout(() => {
-    renderLibrarySongs(index);
-  }, 500);
 }
-
 window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
 
 
@@ -288,7 +271,168 @@ function onPlayerStateChange(event) {
           }
         } catch (e) {}
       }
+// ================================================================
+// MUSIC LIBRARY — LOAD ALL SONG DETAILS
+// ================================================================
 
+async function getYouTubeVideoInfo(videoId) {
+  try {
+    const response = await fetch(
+      `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`
+    );
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch video information");
+    }
+
+    const data = await response.json();
+
+    return {
+      title: data.title || "Unknown Song",
+      artist: data.author_name || "Seedhe Maut",
+      thumbnail: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
+    };
+
+  } catch (error) {
+
+    console.error("Could not load video info:", videoId, error);
+
+    return {
+      title: "Unknown Song",
+      artist: "Seedhe Maut",
+      thumbnail: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
+    };
+  }
+}
+
+
+// ================================================================
+// RENDER LIBRARY SONGS
+// ================================================================
+
+async function renderLibrarySongs() {
+
+  if (!playerReady || !player) return;
+
+  const songList = document.getElementById("librarySongList");
+  const albumName = document.getElementById("libraryAlbumName");
+
+  if (!songList) return;
+
+  const album = ALBUMS[currentAlbumIndex];
+
+  if (albumName) {
+    albumName.textContent = album.name;
+  }
+
+  songList.innerHTML = `
+    <div class="library-empty">
+      Loading songs...
+    </div>
+  `;
+
+  let playlist = [];
+
+  try {
+    playlist = player.getPlaylist() || [];
+  } catch (error) {
+    console.error("Could not get playlist:", error);
+    return;
+  }
+
+  if (!playlist.length) {
+    songList.innerHTML = `
+      <div class="library-empty">
+        No songs found
+      </div>
+    `;
+    return;
+  }
+
+  // Create all song rows immediately
+  songList.innerHTML = "";
+
+  playlist.forEach((videoId, index) => {
+
+    const song = document.createElement("div");
+
+    song.className = "library-song";
+
+    song.innerHTML = `
+      <div class="library-song-number">
+        ${String(index + 1).padStart(2, "0")}
+      </div>
+
+      <div class="library-cover">
+        <img
+          src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg"
+          alt=""
+        >
+      </div>
+
+      <div class="library-song-info">
+
+        <div class="library-song-title">
+          Loading...
+        </div>
+
+        <div class="library-song-artist">
+          Seedhe Maut
+        </div>
+
+      </div>
+    `;
+
+    song.addEventListener("click", () => {
+
+      if (!playerReady || !player) return;
+
+      player.playVideoAt(index);
+
+      updateLibraryActiveSong(index);
+    });
+
+    songList.appendChild(song);
+
+    // Fetch title independently
+    getYouTubeVideoInfo(videoId).then(info => {
+
+      const titleElement =
+        song.querySelector(".library-song-title");
+
+      const artistElement =
+        song.querySelector(".library-song-artist");
+
+      if (titleElement) {
+        titleElement.textContent = info.title;
+      }
+
+      if (artistElement) {
+        artistElement.textContent = info.artist;
+      }
+
+    });
+
+  });
+
+  updateLibraryActiveSong(player.getPlaylistIndex());
+}
+
+
+// ================================================================
+// HIGHLIGHT CURRENT SONG
+// ================================================================
+
+function updateLibraryActiveSong(index) {
+
+  const songs = document.querySelectorAll(".library-song");
+
+  songs.forEach((song, i) => {
+
+    song.classList.toggle("active", i === index);
+
+  });
+}
       function formatTime(sec) {
         if (!sec || isNaN(sec)) return "0:00";
         sec = Math.floor(sec);
