@@ -161,7 +161,6 @@ function onPlayerStateChange(event) {
     setPlayingUI(true);
     updateNowPlayingInfo();
 
-    switchingAlbum = false;
   }
 
   else if (state === YT.PlayerState.PAUSED) {
@@ -172,7 +171,41 @@ function onPlayerStateChange(event) {
 
   else if (state === YT.PlayerState.ENDED) {
 
-    player.nextVideo();
+    const playlist = player.getPlaylist();
+    const currentIndex = player.getPlaylistIndex();
+
+    if (playlist && currentIndex === playlist.length - 1) {
+
+      // Last song of current album
+      // Move to the next album
+      const nextAlbumIndex =
+        (currentAlbumIndex + 1) % ALBUMS.length;
+
+      console.log(
+        "Album finished:",
+        ALBUMS[currentAlbumIndex].name
+      );
+
+      console.log(
+        "Starting next album:",
+        ALBUMS[nextAlbumIndex].name
+      );
+
+      currentAlbumIndex = nextAlbumIndex;
+
+      player.loadPlaylist({
+        listType: "playlist",
+        list: ALBUMS[nextAlbumIndex].playlistId,
+        index: 0,
+        startSeconds: 0
+      });
+
+    } else {
+
+      // Normal next song in same album
+      player.nextVideo();
+
+    }
 
   }
 
@@ -180,16 +213,9 @@ function onPlayerStateChange(event) {
 
     updateNowPlayingInfo();
 
-    if (switchingAlbum) {
-
-      setTimeout(() => {
-
-        if (!playerReady || !player) return;
-
-        player.playVideo();
-
-      }, 300);
-
+    // Automatically start newly loaded album
+    if (playerReady) {
+      player.playVideo();
     }
   }
 }
