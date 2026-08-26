@@ -275,7 +275,16 @@ function onPlayerStateChange(event) {
 // MUSIC LIBRARY — LOAD ALL SONG DETAILS
 // ================================================================
 
+// Cache titles/artists we've already fetched so revisiting an album
+// (or the currently playing album) shows titles instantly instead of
+// re-hitting the network and flashing "Loading..." again.
+const videoInfoCache = new Map();
+
 async function getYouTubeVideoInfo(videoId) {
+  if (videoInfoCache.has(videoId)) {
+    return videoInfoCache.get(videoId);
+  }
+
   try {
     const response = await fetch(
       `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`
@@ -287,11 +296,15 @@ async function getYouTubeVideoInfo(videoId) {
 
     const data = await response.json();
 
-    return {
+    const info = {
       title: data.title || "Unknown Song",
       artist: data.author_name || "Seedhe Maut",
       thumbnail: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
     };
+
+    videoInfoCache.set(videoId, info);
+
+    return info;
 
   } catch (error) {
 
@@ -696,143 +709,37 @@ async function selectLibraryAlbum(index) {
     `;
   }
 
+  // Snapshot the CURRENT playlist before switching. YouTube doesn't
+  // clear player.getPlaylist() the instant loadPlaylist() is called —
+  // it keeps returning the old album's video IDs for a bit. Without
+  // this snapshot, the code below can mistake "still the old playlist"
+  // for "the new one has loaded", which is why you used to have to
+  // click an album more than once.
+  let previousPlaylist = [];
+  try {
+    previousPlaylist =
+      playerReady && player ? (player.getPlaylist() || []) : [];
+  } catch (e) {}
+
   // Change YouTube playlist
   switchAlbum(index);
 
-  // Wait for new playlist and render it
-  await renderLibrarySongs(index);
+  // Wait for the NEW playlist and render it
+  await renderLibrarySongs(index, previousPlaylist);
 }
 
-// ================================================================
-// RENDER SONGS
-// ================================================================
-
-function renderLibrarySongs(index) {
-  const songList = document.getElementById("librarySongList");
-  const albumName = document.getElementById("libraryAlbumName");
-
-  if (!songList) return;
-
-  const album = ALBUMS[index];
-
-  if (!album) {
-    songList.innerHTML =
-      '<div class="library-empty">Select an album</div>';
-    return;
-  }
-
-  albumName.textContent = album.name;
-
-  songList.innerHTML = `
-    <div class="library-empty">
-      Loading songs...
-    </div>
-  `;
-
-  // Give YouTube a moment to load playlist
-  setTimeout(() => {
-    if (!playerReady || !player) return;
-
-    try {
-      const playlist = player.getPlaylist();
-
-      if (!playlist || playlist.length === 0) {
-        songList.innerHTML = `
-          <div class="library-empty">
-            No songs found
-          </div>
-        `;
-        return;
-      }
-
-      songList.innerHTML = "";
-
-      playlist.forEach((videoId, songIndex) => {
-        const song = document.createElement("div");
-
-        song.className = "library-song";
-
-        song.innerHTML = `
-          <div class="library-song-number">
-            ${String(songIndex + 1).padStart(2, "0")}
-          </div>
-
-          <div class="library-cover">
-            <img
-              src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg"
-              alt=""
-            >
-          </div>
-
-          <div class="library-song-info">
-            <div class="library-song-title">
-              Loading...
-            </div>
-
-            <div class="library-song-artist">
-              Seedhe Maut
-            </div>
-          </div>
-        `;
-
-        song.addEventListener("click", () => {
-          if (!playerReady || !player) return;
-
-          player.playVideoAt(songIndex);
-
-          updateNowPlayingInfo();
-
-          // Close library after selecting song
-          closeLibrary();
-        });
-
-        songList.appendChild(song);
-
-        // Get YouTube title
-        try {
-          const tempPlayer = player;
-
-          // If this is the current video, show its title
-          if (
-            tempPlayer.getPlaylistIndex() === songIndex &&
-            tempPlayer.getVideoData()
-          ) {
-            const data = tempPlayer.getVideoData();
-
-            const titleElement =
-              song.querySelector(".library-song-title");
-
-            if (data.title) {
-              titleElement.textContent = data.title;
-            }
-          }
-        } catch (e) {}
-      });
-
-      // Try loading actual titles
-      loadLibrarySongTitles();
-
-    } catch (error) {
-      console.error("Library error:", error);
-
-      songList.innerHTML = `
-        <div class="library-empty">
-          Unable to load songs
-        </div>
-      `;
-    }
-  }, 300);
-}
-
-
-// ================================================================
-// UPDATE SONG TITLES
-// ================================================================
 // ================================================================
 // RENDER SONGS IN MUSIC LIBRARY
 // ================================================================
 
-async function renderLibrarySongs(index) {
+// Bumped every time a new album is selected, so an in-flight render
+// from a previous (now stale) click can detect it's outdated and
+// stop touching the DOM instead of overwriting the current album.
+let libraryRequestId = 0;
+
+async function renderLibrarySongs(index, previousPlaylist = []) {
+
+  const requestId = ++libraryRequestId;
 
   const songList = document.getElementById("librarySongList");
   const albumName = document.getElementById("libraryAlbumName");
@@ -861,18 +768,27 @@ async function renderLibrarySongs(index) {
   // ================================================================
   // WAIT FOR YOUTUBE PLAYLIST TO ACTUALLY LOAD
   // ================================================================
+  // We don't just wait for "some playlist" — we wait for a playlist
+  // that's DIFFERENT from the one we had before switching albums.
+  // (On the very first load there's nothing to compare against, so
+  // any non-empty playlist is accepted right away.)
+
+  const previousKey = previousPlaylist.join(",");
 
   let playlist = [];
   let attempts = 0;
 
-  while (attempts < 40) {
+  while (attempts < 60) {
 
+    if (requestId !== libraryRequestId) return; // a newer album was picked
     if (!playerReady || !player) return;
 
     try {
-      playlist = player.getPlaylist() || [];
+      const current = player.getPlaylist() || [];
+      const currentKey = current.join(",");
 
-      if (playlist.length > 0) {
+      if (current.length > 0 && (previousKey === "" || currentKey !== previousKey)) {
+        playlist = current;
         break;
       }
 
@@ -884,6 +800,8 @@ async function renderLibrarySongs(index) {
 
     attempts++;
   }
+
+  if (requestId !== libraryRequestId) return; // stale by the time we finished waiting
 
   // ================================================================
   // NO PLAYLIST
@@ -962,6 +880,9 @@ async function renderLibrarySongs(index) {
     // ================================================================
 
     getYouTubeVideoInfo(videoId).then(info => {
+
+      // Ignore results from an album the user has already navigated away from
+      if (requestId !== libraryRequestId) return;
 
       const titleElement =
         song.querySelector(".library-song-title");
