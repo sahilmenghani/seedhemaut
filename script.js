@@ -57,7 +57,7 @@ function switchAlbum(index) {
 }
         const ALBUMS = [
   {
-    name: "Current Album",
+    name: "Lunch Break",
     playlistId: PLAYLIST_ID
   },
   {
@@ -67,6 +67,10 @@ function switchAlbum(index) {
   {
     name: "Bayaan",
     playlistId: "PLkEICesI2qi4XQwD9IxUNXzRgmMnJ_ucE"
+  },
+  {
+    name: "न",
+    playlistId: "PLaT0GyWvzyqijYNsKTo9mna6Txzt8qovn"
   }
 ];
 
