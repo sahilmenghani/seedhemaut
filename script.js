@@ -105,33 +105,6 @@ window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
 // SWITCH ALBUM
 // ================================================================
 
-function switchAlbum(index) {
-
-  if (!playerReady) {
-    console.log("Player is not ready yet.");
-    return;
-  }
-
-  if (!ALBUMS[index]) {
-    console.log("Album does not exist.");
-    return;
-  }
-
-  currentAlbumIndex = index;
-
-  const playlistId = ALBUMS[index].playlistId;
-
-  console.log("Switching album:", ALBUMS[index].name);
-  console.log("Playlist ID:", playlistId);
-
-  // Load the new playlist
-  player.loadPlaylist(playlistId);
-
-  // Start from the first song
-  setTimeout(() => {
-    player.playVideoAt(0);
-  }, 300);
-}
       
       window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
 
