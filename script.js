@@ -674,16 +674,11 @@ function renderAlbums() {
 // SELECT ALBUM FROM LIBRARY
 // ================================================================
 
-let albumSwitchInProgress = false;
-
 async function selectLibraryAlbum(index) {
 
   const album = ALBUMS[index];
 
   if (!album) return;
-
-  if (albumSwitchInProgress) return;
-  albumSwitchInProgress = true;
 
   currentAlbumIndex = index;
 
@@ -730,12 +725,7 @@ async function selectLibraryAlbum(index) {
   switchAlbum(index);
 
   // Wait for the NEW playlist and render it
-  // Wait for the NEW playlist and render it
-  try {
-    await renderLibrarySongs(index, previousPlaylist);
-  } finally {
-    albumSwitchInProgress = false;
-  }
+  await renderLibrarySongs(index, previousPlaylist);
 }
 
 // ================================================================
