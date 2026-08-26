@@ -82,7 +82,7 @@ function switchAlbum(index) {
 }
         const ALBUMS = [
   {
-    name: "Current Album",
+    name: "Lunch Break",
     playlistId: PLAYLIST_ID
   },
   {
@@ -91,6 +91,34 @@ function switchAlbum(index) {
   },
   {
     name: "Bayaan",
+    playlistId: "PLkEICesI2qi4XQwD9IxUNXzRgmMnJ_ucE"
+  },
+  {
+    name: "न",
+    playlistId: "PLaT0GyWvzyqijYNsKTo9mna6Txzt8qovn"
+  },
+  {
+    name: "Shakti",
+    playlistId: "OLAK5uy_lsIzlLpNhudxplsDw5YPUrXX0chzHpNwM"
+  },
+  {
+    name: "Kshama",
+    playlistId: "OLAK5uy_kjAh3eyV9-Lv73su7nsQ1zfxwx--IShVg"
+  },
+  {
+    name: "DL91",
+    playlistId: "OLAK5uy_kWDW8_A90JNXKEUgynxrBuLGh6I4Z1F0w"
+  },
+  {
+    name: "EE",
+    playlistId: "PL2WhG2MTtzX6mI0Za_pL8nYAhEzinkkwT"
+  },
+  {
+    name: "Penthouse Tapes",
+    playlistId: "PLdxwh8I3IjCCa-VW3QBnQ5T-GsD2iFkUb"
+  },
+  {
+    name: "Features",
     playlistId: "PLkEICesI2qi4XQwD9IxUNXzRgmMnJ_ucE"
   }
 ];
