@@ -12,7 +12,37 @@
       tag.src = "https://www.youtube.com/iframe_api";
       document.head.appendChild(tag);
 
-     function onYouTubeIframeAPIReady() {
+    // ================================================================
+// ALBUMS / PLAYLISTS
+// ================================================================
+
+const ALBUMS = [
+  {
+    name: "Lunch Break",
+    playlistId: PLAYLIST_ID
+  },
+  {
+    name: "Nayaab",
+    playlistId: "PLVhh-pNjr3-A"
+  },
+  {
+    name: "Bayaan",
+    playlistId: "PLkEICesI2qi4XQwD9IxUNXzRgmMnJ_ucE"
+  },
+  {
+    name: "न",
+    playlistId: "PLaT0GyWvzyqijYNsKTo9mna6Txzt8qovn"
+  }
+];
+
+let currentAlbumIndex = 0;
+
+
+// ================================================================
+// YOUTUBE PLAYER
+// ================================================================
+
+function onYouTubeIframeAPIReady() {
 
   player = new YT.Player("yt-player", {
 
@@ -36,45 +66,41 @@
   });
 
 }
+
+window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
+
+
+// ================================================================
+// SWITCH ALBUM
+// ================================================================
+
 function switchAlbum(index) {
 
-  if (!player || !player.loadPlaylist) return;
+  if (!playerReady) {
+    console.log("Player is not ready yet.");
+    return;
+  }
 
-  if (index < 0 || index >= ALBUMS.length) return;
+  if (!ALBUMS[index]) {
+    console.log("Album does not exist.");
+    return;
+  }
 
   currentAlbumIndex = index;
 
-  const album = ALBUMS[currentAlbumIndex];
+  const playlistId = ALBUMS[index].playlistId;
 
-  player.loadPlaylist({
-    list: album.playlistId,
-    listType: "playlist",
-    index: 0,
-    startSeconds: 0
-  });
+  console.log("Switching album:", ALBUMS[index].name);
+  console.log("Playlist ID:", playlistId);
 
-  console.log("Now playing album:", album.name);
+  // Load the new playlist
+  player.loadPlaylist(playlistId);
+
+  // Start from the first song
+  setTimeout(() => {
+    player.playVideoAt(0);
+  }, 300);
 }
-        const ALBUMS = [
-  {
-    name: "Lunch Break",
-    playlistId: PLAYLIST_ID
-  },
-  {
-    name: "Nayaab",
-    playlistId: "PLVhh-pNjr3-A"
-  },
-  {
-    name: "Bayaan",
-    playlistId: "PLkEICesI2qi4XQwD9IxUNXzRgmMnJ_ucE"
-  },
-  {
-    name: "न",
-    playlistId: "PLaT0GyWvzyqijYNsKTo9mna6Txzt8qovn"
-  }
-];
-
-let currentAlbumIndex = 0;
       
       window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
 
