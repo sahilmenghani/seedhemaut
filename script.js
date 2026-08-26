@@ -666,13 +666,14 @@ function renderAlbums() {
   renderLibrarySongs(currentAlbumIndex);
 }
 
+// ================================================================
+// SELECT ALBUM FROM LIBRARY
+// ================================================================
+// Clicking an album ONLY browses the album.
+// It does NOT change the currently playing song.
+// ================================================================
 
-// ================================================================
-// SELECT ALBUM FROM LIBRARY
-// ================================================================
-// ================================================================
-// SELECT ALBUM FROM LIBRARY
-// ================================================================
+let libraryRequestId = 0;
 
 async function selectLibraryAlbum(index) {
 
@@ -680,16 +681,26 @@ async function selectLibraryAlbum(index) {
 
   if (!album) return;
 
+  // This index represents the album currently being browsed
   currentAlbumIndex = index;
 
+  // Give this request a unique ID
+  const requestId = ++libraryRequestId;
+
+  // ------------------------------------------------
   // Update active album immediately
+  // ------------------------------------------------
+
   document.querySelectorAll(".album-item").forEach((item, i) => {
 
     item.classList.toggle("active", i === index);
 
   });
 
-  // Update album title immediately
+  // ------------------------------------------------
+  // Update album name immediately
+  // ------------------------------------------------
+
   const albumName =
     document.getElementById("libraryAlbumName");
 
@@ -697,117 +708,237 @@ async function selectLibraryAlbum(index) {
     albumName.textContent = album.name;
   }
 
-  // Show loading immediately
-  const songList =
-    document.getElementById("librarySongList");
+  // ------------------------------------------------
+  // Render songs
+  // ------------------------------------------------
 
-  if (songList) {
-    songList.innerHTML = `
-      <div class="library-empty">
-        Loading songs...
-      </div>
-    `;
-  }
-
-  // Snapshot the CURRENT playlist before switching. YouTube doesn't
-  // clear player.getPlaylist() the instant loadPlaylist() is called —
-  // it keeps returning the old album's video IDs for a bit. Without
-  // this snapshot, the code below can mistake "still the old playlist"
-  // for "the new one has loaded", which is why you used to have to
-  // click an album more than once.
-  let previousPlaylist = [];
-  try {
-    previousPlaylist =
-      playerReady && player ? (player.getPlaylist() || []) : [];
-  } catch (e) {}
-
-  // Change YouTube playlist
-  switchAlbum(index);
-
-  // Wait for the NEW playlist and render it
-  await renderLibrarySongs(index, previousPlaylist);
+  await renderLibrarySongs(index, requestId);
 }
+
 
 // ================================================================
 // RENDER SONGS IN MUSIC LIBRARY
 // ================================================================
 
-// Bumped every time a new album is selected, so an in-flight render
-// from a previous (now stale) click can detect it's outdated and
-// stop touching the DOM instead of overwriting the current album.
-let libraryRequestId = 0;
+async function renderLibrarySongs(index, requestId) {
 
-async function renderLibrarySongs(index, previousPlaylist = []) {
+  const songList =
+    document.getElementById("librarySongList");
 
-  const requestId = ++libraryRequestId;
-
-  const songList = document.getElementById("librarySongList");
-  const albumName = document.getElementById("libraryAlbumName");
+  const albumName =
+    document.getElementById("libraryAlbumName");
 
   if (!songList) return;
 
   const album = ALBUMS[index];
 
   if (!album) {
+
     songList.innerHTML =
       '<div class="library-empty">Select an album</div>';
+
     return;
   }
+
+  // ------------------------------------------------
+  // Update album name
+  // ------------------------------------------------
 
   if (albumName) {
     albumName.textContent = album.name;
   }
 
-  // Show loading while YouTube changes playlist
+  // ------------------------------------------------
+  // Loading state
+  // ------------------------------------------------
+
   songList.innerHTML = `
     <div class="library-empty">
       Loading songs...
     </div>
   `;
 
-  // ================================================================
-  // WAIT FOR YOUTUBE PLAYLIST TO ACTUALLY LOAD
-  // ================================================================
-  // We don't just wait for "some playlist" — we wait for a playlist
-  // that's DIFFERENT from the one we had before switching albums.
-  // (On the very first load there's nothing to compare against, so
-  // any non-empty playlist is accepted right away.)
+  // ------------------------------------------------
+  // IMPORTANT:
+  //
+  // DO NOT use the MAIN player here.
+  //
+  // The main player must continue playing the
+  // currently selected song.
+  // ------------------------------------------------
 
-  const previousKey = previousPlaylist.join(",");
+  try {
 
-  let playlist = [];
-  let attempts = 0;
+    // ------------------------------------------------
+    // Create temporary hidden player
+    // ------------------------------------------------
 
-  while (attempts < 60) {
+    const tempContainer =
+      document.createElement("div");
 
-    if (requestId !== libraryRequestId) return; // a newer album was picked
-    if (!playerReady || !player) return;
+    tempContainer.style.position = "absolute";
+    tempContainer.style.width = "1px";
+    tempContainer.style.height = "1px";
+    tempContainer.style.opacity = "0";
+    tempContainer.style.pointerEvents = "none";
 
-    try {
-      const current = player.getPlaylist() || [];
-      const currentKey = current.join(",");
+    document.body.appendChild(tempContainer);
 
-      if (current.length > 0 && (previousKey === "" || currentKey !== previousKey)) {
-        playlist = current;
-        break;
+    let tempPlayer;
+
+    tempPlayer = new YT.Player(tempContainer, {
+
+      height: "1",
+      width: "1",
+
+      playerVars: {
+
+        listType: "playlist",
+
+        list: album.playlistId,
+
+        autoplay: 0,
+
+        mute: 1,
+
+        controls: 0,
+
+        playsinline: 1
+
+      },
+
+      events: {
+
+        onReady: function(event) {
+
+          try {
+
+            // ------------------------------------------------
+            // If user clicked another album while this one
+            // was loading, ignore this old request.
+            // ------------------------------------------------
+
+            if (requestId !== libraryRequestId) {
+
+              try {
+                event.target.destroy();
+              } catch (e) {}
+
+              if (tempContainer.parentNode) {
+                tempContainer.parentNode.removeChild(
+                  tempContainer
+                );
+              }
+
+              return;
+            }
+
+            const playlist =
+              event.target.getPlaylist() || [];
+
+            // ------------------------------------------------
+            // Render songs
+            // ------------------------------------------------
+
+            renderLibrarySongRows(
+              playlist,
+              album,
+              songList
+            );
+
+          } catch (error) {
+
+            console.error(
+              "Library playlist error:",
+              error
+            );
+
+            songList.innerHTML = `
+              <div class="library-empty">
+                Unable to load songs
+              </div>
+            `;
+
+          }
+
+          // ------------------------------------------------
+          // Destroy temporary player
+          // ------------------------------------------------
+
+          try {
+            event.target.destroy();
+          } catch (e) {}
+
+          if (tempContainer.parentNode) {
+
+            tempContainer.parentNode.removeChild(
+              tempContainer
+            );
+
+          }
+
+        },
+
+        onError: function() {
+
+          // Ignore old requests
+          if (requestId !== libraryRequestId) {
+            return;
+          }
+
+          songList.innerHTML = `
+            <div class="library-empty">
+              Unable to load songs
+            </div>
+          `;
+
+          try {
+            tempPlayer.destroy();
+          } catch (e) {}
+
+          if (tempContainer.parentNode) {
+
+            tempContainer.parentNode.removeChild(
+              tempContainer
+            );
+
+          }
+
+        }
+
       }
 
-    } catch (error) {
-      console.log("Waiting for playlist...");
-    }
+    });
 
-    await new Promise(resolve => setTimeout(resolve, 150));
+  } catch (error) {
 
-    attempts++;
+    console.error(
+      "Could not load library playlist:",
+      error
+    );
+
+    songList.innerHTML = `
+      <div class="library-empty">
+        Unable to load songs
+      </div>
+    `;
+
   }
 
-  if (requestId !== libraryRequestId) return; // stale by the time we finished waiting
+}
 
-  // ================================================================
-  // NO PLAYLIST
-  // ================================================================
 
-  if (!playlist.length) {
+// ================================================================
+// CREATE LIBRARY SONG ROWS
+// ================================================================
+
+function renderLibrarySongRows(
+  playlist,
+  album,
+  songList
+) {
+
+  if (!playlist || playlist.length === 0) {
 
     songList.innerHTML = `
       <div class="library-empty">
@@ -818,28 +949,37 @@ async function renderLibrarySongs(index, previousPlaylist = []) {
     return;
   }
 
-  // ================================================================
-  // CREATE ALL SONG ROWS
-  // ================================================================
+  // ------------------------------------------------
+  // Clear loading
+  // ------------------------------------------------
 
   songList.innerHTML = "";
 
+  // ------------------------------------------------
+  // Create every song
+  // ------------------------------------------------
+
   playlist.forEach((videoId, songIndex) => {
 
-    const song = document.createElement("div");
+    const song =
+      document.createElement("div");
 
-    song.className = "library-song";
+    song.className =
+      "library-song";
 
     song.innerHTML = `
+
       <div class="library-song-number">
         ${String(songIndex + 1).padStart(2, "0")}
       </div>
 
       <div class="library-cover">
+
         <img
           src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg"
           alt=""
         >
+
       </div>
 
       <div class="library-song-info">
@@ -853,69 +993,140 @@ async function renderLibrarySongs(index, previousPlaylist = []) {
         </div>
 
       </div>
+
     `;
 
-    // ================================================================
-    // CLICK SONG
-    // ================================================================
+
+    // ============================================================
+    // SONG CLICK
+    // ============================================================
+    //
+    // THIS is the ONLY place where the main player changes.
+    // ============================================================
 
     song.addEventListener("click", () => {
 
-      if (!playerReady || !player) return;
+      if (!playerReady || !player) {
+        return;
+      }
 
-      player.playVideoAt(songIndex);
+      console.log(
+        "Playing:",
+        album.name,
+        "| Song:",
+        songIndex + 1
+      );
 
-      updateLibraryActiveSong(songIndex);
+      // ------------------------------------------------
+      // Find actual album index
+      // ------------------------------------------------
 
-      updateNowPlayingInfo();
+      const albumIndex =
+        ALBUMS.indexOf(album);
+
+      if (albumIndex === -1) {
+        return;
+      }
+
+      // ------------------------------------------------
+      // NOW change the actual playing album
+      // ------------------------------------------------
+
+      currentAlbumIndex =
+        albumIndex;
+
+      player.loadPlaylist({
+
+        listType: "playlist",
+
+        list: album.playlistId,
+
+        index: songIndex,
+
+        startSeconds: 0
+
+      });
+
+      // ------------------------------------------------
+      // Update active album
+      // ------------------------------------------------
+
+      document
+        .querySelectorAll(".album-item")
+        .forEach((item, i) => {
+
+          item.classList.toggle(
+            "active",
+            i === albumIndex
+          );
+
+        });
+
+      // ------------------------------------------------
+      // Update album name
+      // ------------------------------------------------
+
+      const albumName =
+        document.getElementById(
+          "libraryAlbumName"
+        );
+
+      if (albumName) {
+
+        albumName.textContent =
+          album.name;
+
+      }
+
+      // ------------------------------------------------
+      // Close library
+      // ------------------------------------------------
 
       closeLibrary();
 
     });
 
+
+    // ------------------------------------------------
+    // Add song to list
+    // ------------------------------------------------
+
     songList.appendChild(song);
 
-    // ================================================================
-    // GET TITLE FOR EVERY SONG
-    // ================================================================
 
-    getYouTubeVideoInfo(videoId).then(info => {
+    // ------------------------------------------------
+    // Load title / artist
+    // ------------------------------------------------
 
-      // Ignore results from an album the user has already navigated away from
-      if (requestId !== libraryRequestId) return;
+    getYouTubeVideoInfo(videoId)
+      .then(info => {
 
-      const titleElement =
-        song.querySelector(".library-song-title");
+        const titleElement =
+          song.querySelector(
+            ".library-song-title"
+          );
 
-      const artistElement =
-        song.querySelector(".library-song-artist");
+        const artistElement =
+          song.querySelector(
+            ".library-song-artist"
+          );
 
-      if (titleElement) {
-        titleElement.textContent = info.title;
-      }
+        if (titleElement) {
 
-      if (artistElement) {
-        artistElement.textContent = info.artist;
-      }
+          titleElement.textContent =
+            info.title;
 
-    });
+        }
+
+        if (artistElement) {
+
+          artistElement.textContent =
+            info.artist;
+
+        }
+
+      });
 
   });
-
-  // ================================================================
-  // HIGHLIGHT CURRENT SONG
-  // ================================================================
-
-  try {
-
-    const currentIndex = player.getPlaylistIndex();
-
-    updateLibraryActiveSong(currentIndex);
-
-  } catch (error) {
-
-    console.log("Could not get current playlist index");
-
-  }
 
 }
