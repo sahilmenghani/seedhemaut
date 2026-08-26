@@ -119,24 +119,17 @@ function switchAlbum(index) {
     return;
   }
 
-  console.log("Switching to:", album.name);
-  console.log("Playlist:", album.playlistId);
-
   currentAlbumIndex = index;
-  switchingAlbum = true;
 
-  try {
-    player.loadPlaylist({
-      listType: "playlist",
-      list: album.playlistId,
-      index: 0
-    });
+  console.log("Switching to:", album.name);
 
-  } catch (error) {
-    console.error("Album switch error:", error);
-    switchingAlbum = false;
-  }
-}   
+  player.loadPlaylist({
+    listType: "playlist",
+    list: album.playlistId,
+    index: 0,
+    startSeconds: 0
+  });
+} 
 
 window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
 
