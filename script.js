@@ -655,131 +655,222 @@ function playNextSong() {
 
 }
 
-
 // ================================================================
 // PLAY PREVIOUS SONG
 // ================================================================
-function playPreviousAlbumLastSong() {
-  if (!playerReady || !player) return;
+
+function playPreviousSong() {
+
+  if (
+    !playerReady ||
+    !player ||
+    !currentPlaylist ||
+    currentPlaylist.length === 0
+  ) {
+
+    return;
+
+  }
+
+
+  // ------------------------------------------------
+  // IF NOT FIRST SONG → PLAY PREVIOUS SONG
+  // ------------------------------------------------
+
+  if (currentSongIndex > 0) {
+
+    currentSongIndex--;
+
+
+    playExactVideo(
+      currentPlaylist[currentSongIndex]
+    );
+
+
+    return;
+
+  }
+
+
+  // ------------------------------------------------
+  // IF FIRST SONG → GO TO PREVIOUS ALBUM
+  // ------------------------------------------------
 
   const previousAlbumIndex =
-    (currentAlbumIndex - 1 + ALBUMS.length) % ALBUMS.length;
+    (
+      currentAlbumIndex - 1 +
+      ALBUMS.length
+    ) %
+    ALBUMS.length;
 
-  currentAlbumIndex = previousAlbumIndex;
 
-  const previousAlbum = ALBUMS[previousAlbumIndex];
+  const previousAlbum =
+    ALBUMS[previousAlbumIndex];
+
 
   console.log(
-    "Switching to previous album:",
+    "Going to previous album:",
     previousAlbum.name
   );
 
-  // Load the previous album first
+
+  currentAlbumIndex =
+    previousAlbumIndex;
+
+
+  const cachedPlaylist =
+    playlistCache.get(
+      previousAlbum.playlistId
+    );
+
+
+  // ------------------------------------------------
+  // PREVIOUS ALBUM ALREADY CACHED
+  // ------------------------------------------------
+
+  if (
+    cachedPlaylist &&
+    cachedPlaylist.length > 0
+  ) {
+
+    currentPlaylist =
+      cachedPlaylist;
+
+
+    currentSongIndex =
+      currentPlaylist.length - 1;
+
+
+    playExactVideo(
+      currentPlaylist[
+        currentSongIndex
+      ]
+    );
+
+
+    return;
+
+  }
+
+
+  // ------------------------------------------------
+  // LOAD PREVIOUS ALBUM
+  // ------------------------------------------------
+
   player.loadPlaylist({
-    listType: "playlist",
-    list: previousAlbum.playlistId,
-    index: 0,
-    startSeconds: 0
+
+    listType:
+      "playlist",
+
+    list:
+      previousAlbum.playlistId,
+
+    index:
+      0,
+
+    startSeconds:
+      0
+
   });
 
-  // Wait until the playlist is loaded, then play its last song
-  let attempts = 0;
 
-  const waitForPlaylist = setInterval(() => {
-    attempts++;
+  // Wait until playlist loads
+  const requestId =
+    ++playlistLoadRequestId;
 
-    try {
-      const playlist = player.getPlaylist();
 
-      if (playlist && playlist.length > 0) {
-        clearInterval(waitForPlaylist);
+  let attempts =
+    0;
 
-        // Play the LAST song of the previous album
-        player.playVideoAt(playlist.length - 1);
 
-        updateNowPlayingInfo();
-      }
+  const interval =
+    setInterval(() => {
 
-      if (attempts > 40) {
-        clearInterval(waitForPlaylist);
-      }
-
-    } catch (error) {
-      console.error("Previous album error:", error);
-      clearInterval(waitForPlaylist);
-    }
-
-  }, 100);
-}
-function playPreviousSong() {
-  if (!playerReady || !player) return;
-
-  try {
-    const playlist = player.getPlaylist();
-    const currentSongIndex = player.getPlaylistIndex();
-
-    if (!playlist || playlist.length === 0) return;
-
-    // ==========================================
-    // IF NOT FIRST SONG → PLAY PREVIOUS SONG
-    // ==========================================
-
-    if (currentSongIndex > 0) {
-      player.previousVideo();
-      return;
-    }
-
-    // ==========================================
-    // IF FIRST SONG → GO TO PREVIOUS ALBUM
-    // AND PLAY ITS LAST SONG
-    // ==========================================
-
-    const previousAlbumIndex =
-      (currentAlbumIndex - 1 + ALBUMS.length) % ALBUMS.length;
-
-    currentAlbumIndex = previousAlbumIndex;
-
-    const previousAlbum = ALBUMS[currentAlbumIndex];
-
-    // Load previous album
-    player.loadPlaylist({
-      listType: "playlist",
-      list: previousAlbum.playlistId,
-      index: 0,
-      startSeconds: 0,
-    });
-
-    // Wait for YouTube playlist to load
-    let attempts = 0;
-
-    const checkPlaylist = setInterval(() => {
       attempts++;
 
-      try {
-        const newPlaylist = player.getPlaylist();
 
-        if (newPlaylist && newPlaylist.length > 0) {
-          clearInterval(checkPlaylist);
+      // Ignore old requests
+      if (
+        requestId !==
+        playlistLoadRequestId
+      ) {
 
-          // Play LAST song of previous album
-          player.playVideoAt(newPlaylist.length - 1);
-        }
+        clearInterval(interval);
 
-        // Stop trying after 5 seconds
-        if (attempts >= 50) {
-          clearInterval(checkPlaylist);
-        }
+        return;
 
-      } catch (error) {
-        console.error(error);
-        clearInterval(checkPlaylist);
       }
 
-    }, 100);
 
-  } catch (error) {
-    console.error("Previous song error:", error);
-  }
+      try {
+
+        const playlist =
+          player.getPlaylist() || [];
+
+
+        if (
+          playlist.length > 0
+        ) {
+
+          clearInterval(interval);
+
+
+          playlistCache.set(
+            previousAlbum.playlistId,
+            playlist
+          );
+
+
+          currentPlaylist =
+            playlist;
+
+
+          // LAST SONG OF PREVIOUS ALBUM
+          currentSongIndex =
+            playlist.length - 1;
+
+
+          playExactVideo(
+            playlist[
+              currentSongIndex
+            ]
+          );
+
+
+          return;
+
+        }
+
+
+        if (
+          attempts >= 40
+        ) {
+
+          clearInterval(interval);
+
+
+          console.error(
+            "Could not load previous album"
+          );
+
+        }
+
+      }
+
+      catch (error) {
+
+        console.error(
+          "Previous song error:",
+          error
+        );
+
+
+        clearInterval(interval);
+
+      }
+
+    }, 150);
+
 }
 
 
