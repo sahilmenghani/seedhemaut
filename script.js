@@ -24,12 +24,10 @@ setInterval(updateTime, 1000);
 // ALBUMS
 // ================================================================
 
-const PLAYLIST_ID = "PL6Z5nmGOBNaB5M2YKMaVfMlrzwqGVZecK";
-
 const ALBUMS = [
   {
     name: "Lunch Break",
-    playlistId: PLAYLIST_ID
+    playlistId: "PLaT0GyWvzyqgkGtIG6WmfCmpgrv2zPYMD"
   },
   {
     name: "Nayaab",
@@ -661,34 +659,127 @@ function playNextSong() {
 // ================================================================
 // PLAY PREVIOUS SONG
 // ================================================================
+function playPreviousAlbumLastSong() {
+  if (!playerReady || !player) return;
 
+  const previousAlbumIndex =
+    (currentAlbumIndex - 1 + ALBUMS.length) % ALBUMS.length;
+
+  currentAlbumIndex = previousAlbumIndex;
+
+  const previousAlbum = ALBUMS[previousAlbumIndex];
+
+  console.log(
+    "Switching to previous album:",
+    previousAlbum.name
+  );
+
+  // Load the previous album first
+  player.loadPlaylist({
+    listType: "playlist",
+    list: previousAlbum.playlistId,
+    index: 0,
+    startSeconds: 0
+  });
+
+  // Wait until the playlist is loaded, then play its last song
+  let attempts = 0;
+
+  const waitForPlaylist = setInterval(() => {
+    attempts++;
+
+    try {
+      const playlist = player.getPlaylist();
+
+      if (playlist && playlist.length > 0) {
+        clearInterval(waitForPlaylist);
+
+        // Play the LAST song of the previous album
+        player.playVideoAt(playlist.length - 1);
+
+        updateNowPlayingInfo();
+      }
+
+      if (attempts > 40) {
+        clearInterval(waitForPlaylist);
+      }
+
+    } catch (error) {
+      console.error("Previous album error:", error);
+      clearInterval(waitForPlaylist);
+    }
+
+  }, 100);
+}
 function playPreviousSong() {
+  if (!playerReady || !player) return;
 
-  if (
-    !currentPlaylist ||
-    currentPlaylist.length === 0
-  ) {
+  try {
+    const playlist = player.getPlaylist();
+    const currentSongIndex = player.getPlaylistIndex();
 
-    return;
+    if (!playlist || playlist.length === 0) return;
 
+    // ==========================================
+    // IF NOT FIRST SONG → PLAY PREVIOUS SONG
+    // ==========================================
+
+    if (currentSongIndex > 0) {
+      player.previousVideo();
+      return;
+    }
+
+    // ==========================================
+    // IF FIRST SONG → GO TO PREVIOUS ALBUM
+    // AND PLAY ITS LAST SONG
+    // ==========================================
+
+    const previousAlbumIndex =
+      (currentAlbumIndex - 1 + ALBUMS.length) % ALBUMS.length;
+
+    currentAlbumIndex = previousAlbumIndex;
+
+    const previousAlbum = ALBUMS[currentAlbumIndex];
+
+    // Load previous album
+    player.loadPlaylist({
+      listType: "playlist",
+      list: previousAlbum.playlistId,
+      index: 0,
+      startSeconds: 0,
+    });
+
+    // Wait for YouTube playlist to load
+    let attempts = 0;
+
+    const checkPlaylist = setInterval(() => {
+      attempts++;
+
+      try {
+        const newPlaylist = player.getPlaylist();
+
+        if (newPlaylist && newPlaylist.length > 0) {
+          clearInterval(checkPlaylist);
+
+          // Play LAST song of previous album
+          player.playVideoAt(newPlaylist.length - 1);
+        }
+
+        // Stop trying after 5 seconds
+        if (attempts >= 50) {
+          clearInterval(checkPlaylist);
+        }
+
+      } catch (error) {
+        console.error(error);
+        clearInterval(checkPlaylist);
+      }
+
+    }, 100);
+
+  } catch (error) {
+    console.error("Previous song error:", error);
   }
-
-
-  if (
-    currentSongIndex > 0
-  ) {
-
-    currentSongIndex--;
-
-
-    playExactVideo(
-      currentPlaylist[
-        currentSongIndex
-      ]
-    );
-
-  }
-
 }
 
 
@@ -706,8 +797,6 @@ function syncCurrentSongWithVideo() {
     return;
 
   }
-
-
   const index =
     currentPlaylist.indexOf(
       currentVideoId
@@ -2357,12 +2446,6 @@ function updateLibraryActiveSong(
 // ================================================================
 
 const WALLPAPERS = [
-
-  {
-    type: "image",
-    src: "/1.png"
-  },
-
   {
     type: "image",
     src: "/2.jpg"
@@ -2370,22 +2453,7 @@ const WALLPAPERS = [
 
   {
     type: "image",
-    src: "/3.jpg"
-  },
-
-  {
-    type: "image",
-    src: "/4.jpg"
-  },
-
-  {
-    type: "image",
     src: "/seedhemaut.jpg"
-  },
-
-  {
-    type: "video",
-    src: "/nalla freestyle.mp4"
   }
 
 ];
@@ -2553,7 +2621,7 @@ if (wallpaperBtn) {
 // ================================================================
 
 const TBSM_AUDIO_SRC =
-  "/nalla freestyle.mp4";
+  "";
 
 
 const tbsmAudioEl =
