@@ -1,12 +1,3 @@
-let player;
-
-let playerReady = false;
-
-let backgroundPlayer = null;
-let backgroundPlayerReady = false;
-
-let backgroundVideoId = null;
-let backgroundSyncInterval = null;
 // ================================================================
 // LIVE TIME
 // ================================================================
@@ -135,81 +126,45 @@ document.head.appendChild(youtubeScript);
 
 function onYouTubeIframeAPIReady() {
 
-  // ================================================================
-  // MAIN AUDIO PLAYER
-  // ================================================================
-
   player = new YT.Player("yt-player", {
 
     height: "1",
     width: "1",
 
     playerVars: {
+
       listType: "playlist",
-      list: ALBUMS[currentAlbumIndex].playlistId,
+
+      list:
+        ALBUMS[currentAlbumIndex].playlistId,
 
       autoplay: 1,
+
       mute: 1,
+
       controls: 0,
+
       playsinline: 1
+
     },
 
     events: {
-      onReady: onPlayerReady,
-      onStateChange: onPlayerStateChange
+
+      onReady:
+        onPlayerReady,
+
+      onStateChange:
+        onPlayerStateChange,
+
+      onError:
+        onPlayerError
+
     }
 
   });
 
-
-  // ================================================================
-  // BACKGROUND MUSIC VIDEO PLAYER
-  // ALWAYS MUTED
-  // ================================================================
-
-  backgroundPlayer = new YT.Player(
-    "musicVideoPlayer",
-    {
-
-      width: "1920",
-      height: "1080",
-
-      playerVars: {
-
-        autoplay: 0,
-
-        mute: 1,
-
-        controls: 0,
-
-        playsinline: 1,
-
-        rel: 0,
-
-        modestbranding: 1,
-
-        fs: 0
-
-      },
-
-      events: {
-
-        onReady: function(event) {
-
-          backgroundPlayerReady = true;
-
-          event.target.mute();
-
-          event.target.setVolume(0);
-
-        }
-
-      }
-
-    }
-  );
-
 }
+
 window.onYouTubeIframeAPIReady =
   onYouTubeIframeAPIReady;
 
@@ -254,15 +209,16 @@ function onPlayerError(event) {
 // ================================================================
 // PLAYER STATE CHANGE
 // ================================================================
+
 function onPlayerStateChange(event) {
 
   const state =
     event.data;
 
 
-  // ================================================================
+  // ------------------------------------------------
   // PLAYING
-  // ================================================================
+  // ------------------------------------------------
 
   if (
     state ===
@@ -273,29 +229,16 @@ function onPlayerStateChange(event) {
 
     updateNowPlayingInfo();
 
-
-    // Play background video
-    if (
-      backgroundPlayerReady &&
-      backgroundPlayer
-    ) {
-
-      try {
-
-        backgroundPlayer.playVideo();
-
-      } catch (e) {}
-
-    }
+    syncCurrentSongWithVideo();
 
     return;
 
   }
 
 
-  // ================================================================
+  // ------------------------------------------------
   // PAUSED
-  // ================================================================
+  // ------------------------------------------------
 
   if (
     state ===
@@ -304,29 +247,14 @@ function onPlayerStateChange(event) {
 
     setPlayingUI(false);
 
-
-    // Pause background video
-    if (
-      backgroundPlayerReady &&
-      backgroundPlayer
-    ) {
-
-      try {
-
-        backgroundPlayer.pauseVideo();
-
-      } catch (e) {}
-
-    }
-
     return;
 
   }
 
 
-  // ================================================================
+  // ------------------------------------------------
   // ENDED
-  // ================================================================
+  // ------------------------------------------------
 
   if (
     state ===
@@ -340,9 +268,9 @@ function onPlayerStateChange(event) {
   }
 
 
-  // ================================================================
+  // ------------------------------------------------
   // CUED
-  // ================================================================
+  // ------------------------------------------------
 
   if (
     state ===
@@ -871,103 +799,22 @@ function setPlayingUI(isPlaying) {
 
 }
 
-// ================================================================
-// BACKGROUND MUSIC VIDEO
-// ================================================================
 
-function updateBackgroundVideo(videoId) {
-
-  if (
-    !backgroundPlayerReady ||
-    !backgroundPlayer ||
-    !videoId
-  ) {
-    return;
-  }
-
-
-  // ------------------------------------------------
-  // Same video already loaded
-  // ------------------------------------------------
-
-  if (backgroundVideoId === videoId) {
-    return;
-  }
-
-
-  backgroundVideoId = videoId;
-
-
-  const background =
-    document.getElementById(
-      "musicVideoBackground"
-    );
-
-
-  // ------------------------------------------------
-  // Show background
-  // ------------------------------------------------
-
-  if (background) {
-
-    background.classList.add(
-      "active"
-    );
-
-  }
-
-
-  // ------------------------------------------------
-  // Get current song time
-  // ------------------------------------------------
-
-  let currentTime = 0;
-
-  try {
-
-    currentTime =
-      player.getCurrentTime() || 0;
-
-  } catch (e) {}
-
-
-  // ------------------------------------------------
-  // Load SAME YouTube video
-  // Background is always muted
-  // ------------------------------------------------
-
-  try {
-
-    backgroundPlayer.loadVideoById({
-
-      videoId: videoId,
-
-      startSeconds: currentTime
-
-    });
-
-    backgroundPlayer.mute();
-
-    backgroundPlayer.setVolume(0);
-
-  } catch (error) {
-
-    console.error(
-      "Background video error:",
-      error
-    );
-
-  }
-
-}
 // ================================================================
 // UPDATE NOW PLAYING INFORMATION
 // ================================================================
+
 function updateNowPlayingInfo() {
 
-  if (!playerReady || !player) {
+  if (
+    !playerReady ||
+    !player
+  ) {
+
     return;
+
   }
+
 
   try {
 
@@ -980,75 +827,53 @@ function updateNowPlayingInfo() {
       data.video_id
     ) {
 
-      const newVideoId =
+      currentVideoId =
         data.video_id;
 
-
-      // ------------------------------------------------
-      // Detect song change
-      // ------------------------------------------------
-
-      const songChanged =
-        currentVideoId !== newVideoId;
-
-
-      currentVideoId =
-        newVideoId;
-
-
-      // ------------------------------------------------
-      // Update title
-      // ------------------------------------------------
 
       const trackTitle =
         document.getElementById(
           "trackTitle"
         );
 
-      if (trackTitle) {
-
-        trackTitle.textContent =
-          data.title || "Loading…";
-
-      }
-
-
-      // ------------------------------------------------
-      // Update album art
-      // ------------------------------------------------
 
       const albumArt =
         document.getElementById(
           "albumArt"
         );
 
+
+      if (trackTitle) {
+
+        trackTitle.textContent =
+          data.title ||
+          "Unknown Song";
+
+      }
+
+
       if (albumArt) {
 
         albumArt.src =
-          `https://img.youtube.com/vi/${newVideoId}/mqdefault.jpg`;
+          `https://img.youtube.com/vi/${data.video_id}/mqdefault.jpg`;
 
       }
 
 
-      // ------------------------------------------------
-      // CHANGE BACKGROUND VIDEO
-      // Only when song actually changes
-      // ------------------------------------------------
+      syncCurrentSongWithVideo();
 
-      if (songChanged) {
-
-        updateBackgroundVideo(
-          newVideoId
-        );
-
-      }
+      updateLibraryActiveSong(
+        currentSongIndex
+      );
 
     }
 
-  } catch (error) {
+  }
+
+  catch (error) {
 
     console.error(
-      "Now playing update error:",
+      "Could not update song information:",
       error
     );
 
