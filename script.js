@@ -16,19 +16,17 @@ function updateTime() {
   });
 }
 
-// Update immediately
 updateTime();
-
-// Update every second
 setInterval(updateTime, 1000);
-      const PLAYLIST_ID = "PL6Z5nmGOBNaB5M2YKMaVfMlrzwqGVZecK";
 
-      let player;
-      let playerReady = false;
-      let audioUnlocked = false;
-      let progressInterval = null;
-      let currentVideoId = null;
- const ALBUMS = [
+
+// ================================================================
+// ALBUMS
+// ================================================================
+
+const PLAYLIST_ID = "PL6Z5nmGOBNaB5M2YKMaVfMlrzwqGVZecK";
+
+const ALBUMS = [
   {
     name: "Lunch Break",
     playlistId: PLAYLIST_ID
@@ -71,17 +69,62 @@ setInterval(updateTime, 1000);
   }
 ];
 
-let currentAlbumIndex = 0;
-      
-      // Load YouTube IFrame API
-      const tag = document.createElement("script");
-      tag.src = "https://www.youtube.com/iframe_api";
-      document.head.appendChild(tag);
 
-    // ================================================================
-// ALBUMS / PLAYLISTS
 // ================================================================
-   function onYouTubeIframeAPIReady() {
+// PLAYER STATE
+// ================================================================
+
+let player = null;
+let playerReady = false;
+let audioUnlocked = false;
+
+let progressInterval = null;
+
+// Album currently playing
+let currentAlbumIndex = 0;
+
+// Album currently being browsed in library
+let browsingAlbumIndex = 0;
+
+// Exact video currently playing
+let currentVideoId = null;
+
+// Complete playlist of currently playing album
+let currentPlaylist = [];
+
+// Current song index
+let currentSongIndex = 0;
+
+// Cached playlists
+const playlistCache = new Map();
+
+// Cached video information
+const videoInfoCache = new Map();
+
+// Prevent old library requests overwriting new requests
+let libraryRequestId = 0;
+
+// Used when loading playlists into main player
+let playlistLoadRequestId = 0;
+
+
+// ================================================================
+// LOAD YOUTUBE IFRAME API
+// ================================================================
+
+const youtubeScript = document.createElement("script");
+
+youtubeScript.src =
+  "https://www.youtube.com/iframe_api";
+
+document.head.appendChild(youtubeScript);
+
+
+// ================================================================
+// CREATE YOUTUBE PLAYER
+// ================================================================
+
+function onYouTubeIframeAPIReady() {
 
   player = new YT.Player("yt-player", {
 
@@ -89,542 +132,1469 @@ let currentAlbumIndex = 0;
     width: "1",
 
     playerVars: {
+
       listType: "playlist",
-      list: ALBUMS[currentAlbumIndex].playlistId,
+
+      list:
+        ALBUMS[currentAlbumIndex].playlistId,
+
       autoplay: 1,
+
       mute: 1,
+
       controls: 0,
+
       playsinline: 1
+
     },
 
     events: {
-      onReady: onPlayerReady,
-      onStateChange: onPlayerStateChange
+
+      onReady:
+        onPlayerReady,
+
+      onStateChange:
+        onPlayerStateChange,
+
+      onError:
+        onPlayerError
+
     }
 
   });
 
 }
-function switchAlbum(index) {
 
-  if (!playerReady || !player) {
-    console.log("Player not ready");
-    return;
-  }
+window.onYouTubeIframeAPIReady =
+  onYouTubeIframeAPIReady;
 
-  const album = ALBUMS[index];
 
-  if (!album) {
-    console.log("Invalid album:", index);
-    return;
-  }
+// ================================================================
+// PLAYER READY
+// ================================================================
 
-  currentAlbumIndex = index;
+function onPlayerReady(event) {
 
-  console.log("Switching to:", album.name);
+  playerReady = true;
 
-  player.loadPlaylist({
-    listType: "playlist",
-    list: album.playlistId,
-    index: 0,
-    startSeconds: 0
-  });
+  event.target.mute();
+
+  // Get initial playlist
+  waitForPlaylist(
+    ALBUMS[currentAlbumIndex].playlistId,
+    0
+  );
+
+  updateNowPlayingInfo();
+
+  startProgressLoop();
+
 }
-window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
 
 
 // ================================================================
-// SWITCH ALBUM
+// PLAYER ERROR
 // ================================================================
 
-      function onPlayerReady(event) {
-        playerReady = true;
-        event.target.mute();
-        event.target.playVideo();
-        updateNowPlayingInfo();
-        startProgressLoop();
-      }
+function onPlayerError(event) {
+
+  console.error(
+    "YouTube Player Error:",
+    event.data
+  );
+
+}
+
+
+// ================================================================
+// PLAYER STATE CHANGE
+// ================================================================
+
 function onPlayerStateChange(event) {
 
-  const state = event.data;
+  const state =
+    event.data;
 
-  // ================================================================
+
+  // ------------------------------------------------
   // PLAYING
-  // ================================================================
-  if (state === YT.PlayerState.PLAYING) {
+  // ------------------------------------------------
+
+  if (
+    state ===
+    YT.PlayerState.PLAYING
+  ) {
 
     setPlayingUI(true);
+
     updateNowPlayingInfo();
+
+    syncCurrentSongWithVideo();
+
+    return;
 
   }
 
-  // ================================================================
+
+  // ------------------------------------------------
   // PAUSED
-  // ================================================================
-  else if (state === YT.PlayerState.PAUSED) {
+  // ------------------------------------------------
+
+  if (
+    state ===
+    YT.PlayerState.PAUSED
+  ) {
 
     setPlayingUI(false);
 
+    return;
+
   }
 
-  // ================================================================
+
+  // ------------------------------------------------
   // ENDED
-  // ================================================================
-  else if (state === YT.PlayerState.ENDED) {
+  // ------------------------------------------------
 
-    if (!playerReady || !player) return;
+  if (
+    state ===
+    YT.PlayerState.ENDED
+  ) {
 
-    try {
+    playNextSong();
 
-      const playlist = player.getPlaylist();
-      const currentIndex = player.getPlaylistIndex();
-
-      console.log(
-        "Song ended:",
-        currentIndex + 1,
-        "/",
-        playlist ? playlist.length : "unknown"
-      );
-
-      // ============================================================
-      // LAST SONG OF CURRENT ALBUM
-      // ============================================================
-      if (
-        playlist &&
-        playlist.length > 0 &&
-        currentIndex === playlist.length - 1
-      ) {
-
-        const nextAlbumIndex =
-          (currentAlbumIndex + 1) % ALBUMS.length;
-
-        console.log(
-          "Current album finished:",
-          ALBUMS[currentAlbumIndex].name
-        );
-
-        console.log(
-          "Switching to next album:",
-          ALBUMS[nextAlbumIndex].name
-        );
-
-        currentAlbumIndex = nextAlbumIndex;
-
-        player.loadPlaylist({
-          listType: "playlist",
-          list: ALBUMS[nextAlbumIndex].playlistId,
-          index: 0,
-          startSeconds: 0
-        });
-
-      }
-
-      // ============================================================
-      // NORMAL NEXT SONG
-      // ============================================================
-      else {
-
-        player.nextVideo();
-
-      }
-
-    } catch (error) {
-
-      console.error("Album switch error:", error);
-
-    }
+    return;
 
   }
 
-  // ================================================================
+
+  // ------------------------------------------------
   // CUED
-  // ================================================================
-  else if (state === YT.PlayerState.CUED) {
+  // ------------------------------------------------
+
+  if (
+    state ===
+    YT.PlayerState.CUED
+  ) {
 
     updateNowPlayingInfo();
 
   }
+
 }
-      function setPlayingUI(isPlaying) {
-        const playIcon = document.getElementById("playIcon");
-        const disc = document.getElementById("vinylDisc");
-        if (isPlaying) {
-          playIcon.innerHTML =
-            '<rect x="6" y="5" width="4" height="14"></rect><rect x="14" y="5" width="4" height="14"></rect>';
-          disc.classList.add("spinning");
-        } else {
-          playIcon.innerHTML = '<path d="M8 5v14l11-7z"></path>';
-          disc.classList.remove("spinning");
-        }
+
+
+// ================================================================
+// WAIT FOR PLAYLIST
+// ================================================================
+
+function waitForPlaylist(
+  playlistId,
+  songIndex = 0
+) {
+
+  const requestId =
+    ++playlistLoadRequestId;
+
+  let attempts = 0;
+
+  const maxAttempts = 20;
+
+
+  const interval =
+    setInterval(() => {
+
+      attempts++;
+
+
+      // Ignore old request
+      if (
+        requestId !==
+        playlistLoadRequestId
+      ) {
+
+        clearInterval(interval);
+
+        return;
+
       }
 
-      function updateNowPlayingInfo() {
-        if (!playerReady) return;
-        try {
-          const data = player.getVideoData();
-          if (data && data.video_id) {
-            currentVideoId = data.video_id;
-            document.getElementById("trackTitle").textContent =
-              data.title || "Loading…";
-            document.getElementById("albumArt").src =
-              `https://img.youtube.com/vi/${data.video_id}/mqdefault.jpg`;
+
+      try {
+
+        const playlist =
+          player.getPlaylist() || [];
+
+
+        if (
+          playlist.length > 0
+        ) {
+
+          clearInterval(interval);
+
+
+          // Cache playlist
+          playlistCache.set(
+            playlistId,
+            playlist
+          );
+
+
+          currentPlaylist =
+            playlist;
+
+
+          // Prevent invalid index
+          if (
+            songIndex >=
+            playlist.length
+          ) {
+
+            songIndex = 0;
+
           }
-        } catch (e) {}
+
+
+          currentSongIndex =
+            songIndex;
+
+
+          // Play requested song
+          playExactVideo(
+            playlist[songIndex]
+          );
+
+        }
+
+
+        else if (
+          attempts >=
+          maxAttempts
+        ) {
+
+          clearInterval(interval);
+
+          console.error(
+            "Could not load playlist:",
+            playlistId
+          );
+
+        }
+
       }
+
+      catch (error) {
+
+        console.error(
+          "Playlist loading error:",
+          error
+        );
+
+      }
+
+    }, 150);
+
+}
+
+
 // ================================================================
-// MUSIC LIBRARY — LOAD ALL SONG DETAILS
+// LOAD ALBUM FOR PLAYBACK
 // ================================================================
 
-// Cache titles/artists we've already fetched so revisiting an album
-// (or the currently playing album) shows titles instantly instead of
-// re-hitting the network and flashing "Loading..." again.
-const videoInfoCache = new Map();
+function loadAlbumForPlayback(
+  albumIndex,
+  songIndex = 0
+) {
 
-async function getYouTubeVideoInfo(videoId) {
-  if (videoInfoCache.has(videoId)) {
-    return videoInfoCache.get(videoId);
+  if (
+    !playerReady ||
+    !player
+  ) {
+
+    return;
+
   }
 
-  try {
-    const response = await fetch(
-      `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`
+
+  const album =
+    ALBUMS[albumIndex];
+
+
+  if (!album) {
+
+    console.error(
+      "Invalid album:",
+      albumIndex
     );
 
-    if (!response.ok) {
-      throw new Error("Failed to fetch video information");
+    return;
+
+  }
+
+
+  currentAlbumIndex =
+    albumIndex;
+
+
+  const cachedPlaylist =
+    playlistCache.get(
+      album.playlistId
+    );
+
+
+  // ------------------------------------------------
+  // PLAYLIST ALREADY CACHED
+  // ------------------------------------------------
+
+  if (
+    cachedPlaylist &&
+    cachedPlaylist.length > 0
+  ) {
+
+    currentPlaylist =
+      cachedPlaylist;
+
+
+    if (
+      songIndex >=
+      currentPlaylist.length
+    ) {
+
+      songIndex = 0;
+
     }
 
-    const data = await response.json();
+
+    currentSongIndex =
+      songIndex;
+
+
+    playExactVideo(
+      currentPlaylist[
+        currentSongIndex
+      ]
+    );
+
+    return;
+
+  }
+
+
+  // ------------------------------------------------
+  // LOAD PLAYLIST FROM YOUTUBE
+  // ------------------------------------------------
+
+  player.loadPlaylist({
+
+    listType:
+      "playlist",
+
+    list:
+      album.playlistId,
+
+    index: 0,
+
+    startSeconds: 0
+
+  });
+
+
+  waitForPlaylist(
+    album.playlistId,
+    songIndex
+  );
+
+}
+
+
+// ================================================================
+// PLAY EXACT VIDEO
+// ================================================================
+
+function playExactVideo(videoId) {
+
+  if (
+    !playerReady ||
+    !player ||
+    !videoId
+  ) {
+
+    return;
+
+  }
+
+
+  console.log(
+    "Playing exact video:",
+    videoId
+  );
+
+
+  currentVideoId =
+    videoId;
+
+
+  player.loadVideoById({
+
+    videoId:
+      videoId,
+
+    startSeconds: 0
+
+  });
+
+
+  // ------------------------------------------------
+  // UPDATE UI IMMEDIATELY
+  // ------------------------------------------------
+
+  const albumArt =
+    document.getElementById(
+      "albumArt"
+    );
+
+
+  if (albumArt) {
+
+    albumArt.src =
+      `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
+
+  }
+
+
+  const trackTitle =
+    document.getElementById(
+      "trackTitle"
+    );
+
+
+  if (trackTitle) {
+
+    trackTitle.textContent =
+      "Loading…";
+
+  }
+
+
+  updateLibraryActiveSong(
+    currentSongIndex
+  );
+
+}
+
+
+// ================================================================
+// PLAY NEXT SONG
+// ================================================================
+
+function playNextSong() {
+
+  if (
+    !currentPlaylist ||
+    currentPlaylist.length === 0
+  ) {
+
+    return;
+
+  }
+
+
+  // ------------------------------------------------
+  // NEXT SONG IN SAME ALBUM
+  // ------------------------------------------------
+
+  if (
+    currentSongIndex <
+    currentPlaylist.length - 1
+  ) {
+
+    currentSongIndex++;
+
+
+    playExactVideo(
+      currentPlaylist[
+        currentSongIndex
+      ]
+    );
+
+
+    return;
+
+  }
+
+
+  // ------------------------------------------------
+  // CURRENT ALBUM FINISHED
+  // ------------------------------------------------
+
+  const nextAlbumIndex =
+    (
+      currentAlbumIndex + 1
+    ) %
+    ALBUMS.length;
+
+
+  console.log(
+    "Album finished:",
+    ALBUMS[
+      currentAlbumIndex
+    ].name
+  );
+
+
+  console.log(
+    "Starting next album:",
+    ALBUMS[
+      nextAlbumIndex
+    ].name
+  );
+
+
+  loadAlbumForPlayback(
+    nextAlbumIndex,
+    0
+  );
+
+}
+
+
+// ================================================================
+// PLAY PREVIOUS SONG
+// ================================================================
+
+function playPreviousSong() {
+
+  if (
+    !currentPlaylist ||
+    currentPlaylist.length === 0
+  ) {
+
+    return;
+
+  }
+
+
+  if (
+    currentSongIndex > 0
+  ) {
+
+    currentSongIndex--;
+
+
+    playExactVideo(
+      currentPlaylist[
+        currentSongIndex
+      ]
+    );
+
+  }
+
+}
+
+
+// ================================================================
+// SYNC CURRENT VIDEO WITH PLAYLIST
+// ================================================================
+
+function syncCurrentSongWithVideo() {
+
+  if (
+    !currentVideoId ||
+    !currentPlaylist
+  ) {
+
+    return;
+
+  }
+
+
+  const index =
+    currentPlaylist.indexOf(
+      currentVideoId
+    );
+
+
+  if (
+    index !== -1
+  ) {
+
+    currentSongIndex =
+      index;
+
+  }
+
+}
+
+
+// ================================================================
+// UPDATE PLAYING UI
+// ================================================================
+
+function setPlayingUI(isPlaying) {
+
+  const playIcon =
+    document.getElementById(
+      "playIcon"
+    );
+
+
+  const disc =
+    document.getElementById(
+      "vinylDisc"
+    );
+
+
+  if (
+    !playIcon ||
+    !disc
+  ) {
+
+    return;
+
+  }
+
+
+  if (isPlaying) {
+
+    playIcon.innerHTML =
+      `
+      <rect
+        x="6"
+        y="5"
+        width="4"
+        height="14"
+      ></rect>
+
+      <rect
+        x="14"
+        y="5"
+        width="4"
+        height="14"
+      ></rect>
+      `;
+
+
+    disc.classList.add(
+      "spinning"
+    );
+
+  }
+
+
+  else {
+
+    playIcon.innerHTML =
+      `
+      <path
+        d="M8 5v14l11-7z"
+      ></path>
+      `;
+
+
+    disc.classList.remove(
+      "spinning"
+    );
+
+  }
+
+}
+
+
+// ================================================================
+// UPDATE NOW PLAYING INFORMATION
+// ================================================================
+
+function updateNowPlayingInfo() {
+
+  if (
+    !playerReady ||
+    !player
+  ) {
+
+    return;
+
+  }
+
+
+  try {
+
+    const data =
+      player.getVideoData();
+
+
+    if (
+      data &&
+      data.video_id
+    ) {
+
+      currentVideoId =
+        data.video_id;
+
+
+      const trackTitle =
+        document.getElementById(
+          "trackTitle"
+        );
+
+
+      const albumArt =
+        document.getElementById(
+          "albumArt"
+        );
+
+
+      if (trackTitle) {
+
+        trackTitle.textContent =
+          data.title ||
+          "Unknown Song";
+
+      }
+
+
+      if (albumArt) {
+
+        albumArt.src =
+          `https://img.youtube.com/vi/${data.video_id}/mqdefault.jpg`;
+
+      }
+
+
+      syncCurrentSongWithVideo();
+
+      updateLibraryActiveSong(
+        currentSongIndex
+      );
+
+    }
+
+  }
+
+  catch (error) {
+
+    console.error(
+      "Could not update song information:",
+      error
+    );
+
+  }
+
+}
+
+
+// ================================================================
+// FORMAT TIME
+// ================================================================
+
+function formatTime(seconds) {
+
+  if (
+    !seconds ||
+    isNaN(seconds)
+  ) {
+
+    return "0:00";
+
+  }
+
+
+  seconds =
+    Math.floor(seconds);
+
+
+  const minutes =
+    Math.floor(
+      seconds / 60
+    );
+
+
+  const remainingSeconds =
+    seconds % 60;
+
+
+  return (
+    minutes +
+    ":" +
+    remainingSeconds
+      .toString()
+      .padStart(2, "0")
+  );
+
+}
+
+
+// ================================================================
+// PROGRESS LOOP
+// ================================================================
+
+function startProgressLoop() {
+
+  if (
+    progressInterval
+  ) {
+
+    clearInterval(
+      progressInterval
+    );
+
+  }
+
+
+  progressInterval =
+    setInterval(() => {
+
+      if (
+        !playerReady ||
+        !player
+      ) {
+
+        return;
+
+      }
+
+
+      try {
+
+        const duration =
+          player.getDuration();
+
+
+        const currentTime =
+          player.getCurrentTime();
+
+
+        const progressFill =
+          document.getElementById(
+            "progressFill"
+          );
+
+
+        const timeDisplay =
+          document.getElementById(
+            "timeDisplay"
+          );
+
+
+        if (
+          duration > 0 &&
+          progressFill
+        ) {
+
+          const percentage =
+            (
+              currentTime /
+              duration
+            ) *
+            100;
+
+
+          progressFill.style.width =
+            percentage +
+            "%";
+
+        }
+
+
+        if (timeDisplay) {
+
+          timeDisplay.textContent =
+            `${formatTime(
+              currentTime
+            )} / ${formatTime(
+              duration
+            )}`;
+
+        }
+
+
+        const data =
+          player.getVideoData();
+
+
+        if (
+          data &&
+          data.video_id &&
+          data.video_id !==
+          currentVideoId
+        ) {
+
+          updateNowPlayingInfo();
+
+        }
+
+
+        else if (
+          data &&
+          data.title
+        ) {
+
+          const trackTitle =
+            document.getElementById(
+              "trackTitle"
+            );
+
+
+          if (
+            trackTitle &&
+            trackTitle.textContent ===
+            "Loading…"
+          ) {
+
+            updateNowPlayingInfo();
+
+          }
+
+        }
+
+      }
+
+      catch (error) {}
+
+    }, 500);
+
+}
+
+
+// ================================================================
+// GET YOUTUBE VIDEO INFORMATION
+// ================================================================
+
+async function getYouTubeVideoInfo(
+  videoId
+) {
+
+  if (
+    videoInfoCache.has(
+      videoId
+    )
+  ) {
+
+    return videoInfoCache.get(
+      videoId
+    );
+
+  }
+
+
+  try {
+
+    const response =
+      await fetch(
+        `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`
+      );
+
+
+    if (
+      !response.ok
+    ) {
+
+      throw new Error(
+        "Could not fetch video information"
+      );
+
+    }
+
+
+    const data =
+      await response.json();
+
 
     const info = {
-      title: data.title || "Unknown Song",
-      artist: data.author_name || "Seedhe Maut",
-      thumbnail: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
+
+      title:
+        data.title ||
+        "Unknown Song",
+
+      artist:
+        data.author_name ||
+        "Seedhe Maut",
+
+      thumbnail:
+        `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
+
     };
 
-    videoInfoCache.set(videoId, info);
+
+    videoInfoCache.set(
+      videoId,
+      info
+    );
+
 
     return info;
 
-  } catch (error) {
+  }
 
-    console.error("Could not load video info:", videoId, error);
+  catch (error) {
+
+    console.error(
+      "Could not load video information:",
+      videoId
+    );
+
 
     return {
-      title: "Unknown Song",
-      artist: "Seedhe Maut",
-      thumbnail: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
+
+      title:
+        "Unknown Song",
+
+      artist:
+        "Seedhe Maut",
+
+      thumbnail:
+        `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
+
     };
+
   }
+
 }
 
 
 // ================================================================
-// RENDER LIBRARY SONGS
+// MUSIC CONTROLS
 // ================================================================
 
+const playBtn =
+  document.getElementById(
+    "playBtn"
+  );
 
 
-// ================================================================
-// HIGHLIGHT CURRENT SONG
-// ================================================================
+if (playBtn) {
 
-function updateLibraryActiveSong(index) {
+  playBtn.addEventListener(
+    "click",
+    () => {
 
-  const songs = document.querySelectorAll(".library-song");
+      if (
+        !playerReady
+      ) {
 
-  songs.forEach((song, i) => {
+        return;
 
-    song.classList.toggle("active", i === index);
+      }
 
-  });
+
+      const state =
+        player.getPlayerState();
+
+
+      if (
+        state ===
+        YT.PlayerState.PLAYING
+      ) {
+
+        player.pauseVideo();
+
+      }
+
+      else {
+
+        player.playVideo();
+
+      }
+
+    }
+  );
+
 }
-      function formatTime(sec) {
-        if (!sec || isNaN(sec)) return "0:00";
-        sec = Math.floor(sec);
-        const m = Math.floor(sec / 60);
-        const s = sec % 60;
-        return `${m}:${s.toString().padStart(2, "0")}`;
+
+
+// ================================================================
+// PREVIOUS BUTTON
+// ================================================================
+
+const prevBtn =
+  document.getElementById(
+    "prevBtn"
+  );
+
+
+if (prevBtn) {
+
+  prevBtn.addEventListener(
+    "click",
+    () => {
+
+      if (
+        !playerReady
+      ) {
+
+        return;
+
       }
 
-      function startProgressLoop() {
-        if (progressInterval) clearInterval(progressInterval);
-        progressInterval = setInterval(() => {
-          if (!playerReady) return;
-          try {
-            const dur = player.getDuration();
-            const cur = player.getCurrentTime();
-            if (dur > 0) {
-              const pct = (cur / dur) * 100;
-              document.getElementById("progressFill").style.width = pct + "%";
-            }
-            document.getElementById("timeDisplay").textContent =
-              `${formatTime(cur)} / ${formatTime(dur)}`;
-            // catch title updates in case metadata loads late
-            const data = player.getVideoData();
-            if (data && data.video_id && data.video_id !== currentVideoId) {
-              updateNowPlayingInfo();
-            } else if (
-              data &&
-              data.title &&
-              document.getElementById("trackTitle").textContent === "Loading…"
-            ) {
-              updateNowPlayingInfo();
-            }
-          } catch (e) {}
-        }, 500);
+
+      playPreviousSong();
+
+    }
+  );
+
+}
+
+
+// ================================================================
+// NEXT BUTTON
+// ================================================================
+
+const nextBtn =
+  document.getElementById(
+    "nextBtn"
+  );
+
+
+if (nextBtn) {
+
+  nextBtn.addEventListener(
+    "click",
+    () => {
+
+      if (
+        !playerReady
+      ) {
+
+        return;
+
       }
 
-      // Controls
-      document.getElementById("playBtn").addEventListener("click", () => {
-        if (!playerReady) return;
-        const state = player.getPlayerState();
-        if (state === YT.PlayerState.PLAYING) {
-          player.pauseVideo();
-        } else {
-          player.playVideo();
-        }
-      });
 
-      document.getElementById("prevBtn").addEventListener("click", () => {
-        if (!playerReady) return;
-        player.previousVideo();
-      });
+      playNextSong();
 
-      document.getElementById("nextBtn").addEventListener("click", () => {
-        if (!playerReady) return;
-        player.nextVideo();
-      });
+    }
+  );
 
-      document.getElementById("progressBar").addEventListener("click", (e) => {
-        if (!playerReady) return;
-        const bar = e.currentTarget;
-        const rect = bar.getBoundingClientRect();
-        const pct = (e.clientX - rect.left) / rect.width;
-        const dur = player.getDuration();
-        if (dur > 0) {
-          player.seekTo(dur * pct, true);
-        }
-      });
+}
 
-      document.getElementById("shuffleBtn").addEventListener("click", (e) => {
-        if (!playerReady) return;
-        const btn = e.currentTarget;
-        btn.classList.add("flash");
-        setTimeout(() => btn.classList.remove("flash"), 250);
 
-        try {
-          const playlist = player.getPlaylist();
-          if (playlist && playlist.length > 1) {
-            const currentIndex = player.getPlaylistIndex();
-            let randomIndex;
-            do {
-              randomIndex = Math.floor(Math.random() * playlist.length);
-            } while (randomIndex === currentIndex);
-            player.playVideoAt(randomIndex);
-          } else {
-            player.nextVideo();
-          }
-        } catch (err) {
-          player.nextVideo();
-        }
-      });
+// ================================================================
+// PROGRESS BAR CLICK
+// ================================================================
 
-      // Unlock audio on first interaction anywhere on the page
-      function unlockAudio() {
-        if (audioUnlocked || !playerReady) return;
-        audioUnlocked = true;
-        player.unMute();
-        player.setVolume(100);
-        document.removeEventListener("click", unlockAudio);
-        document.removeEventListener("touchstart", unlockAudio);
-      }
-      document.addEventListener("click", unlockAudio);
-      document.addEventListener("touchstart", unlockAudio);
+const progressBar =
+  document.getElementById(
+    "progressBar"
+  );
 
-      // ================================================================
-      // WALLPAPERS — ADD YOUR OWN IMAGES / GIFS HERE
-      // ================================================================
-      // How to add a wallpaper:
-      // 1. Go to a free "image to base64" converter website, for example:
-      //    https://www.base64-image.de/  (works for images AND gifs)
-      // 2. Upload your picture or gif there. It will give you a long block
-      //    of text starting with something like:
-      //       data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD......
-      //    or for a gif:
-      //       data:image/gif;base64,R0lGODlhAQABAIAAAP.......
-      // 3. Copy that ENTIRE text (it can be very long, that's normal).
-      // 4. Paste it as a new line inside the WALLPAPERS list below,
-      //    with a comma at the end, wrapped in quotes, like this:
-      //
-      //    const WALLPAPERS = [
-      //      "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD......",   <-- existing background
-      //      "data:image/jpeg;base64,PASTE_YOUR_NEW_ONE_HERE......",      <-- your new wallpaper
-      //      "data:image/gif;base64,PASTE_A_GIF_HERE......",              <-- a gif works too
-      //    ];
-      //
-      // 5. Save the file and re-upload it to Netlify (or drag a fresh
-      //    index.html onto app.netlify.com/drop again) to go live.
-      //
-      // The very first item in the list is what shows when the page loads.
-      // Every time someone clicks the picture-frame button, it moves to
-      // the next item in the list, and loops back to the first after the
-      // last one.
-      // ================================================================
-      const WALLPAPERS = [
-        {
-          type: "image",
-          src: "/1.png",
-        },
-        {
-          type: "image",
-          src: "/2.jpg",
-        },
-        {
-          type: "image",
-          src: "/3.jpg",
-        },
-        {
-          type: "image",
-          src: "/4.jpg",
-        },
-        {
-          type: "image",
-          src: "/seedhemaut.jpg",
-        },
-        // Example video wallpaper
-        {
-          type: "video",
-          src: "/nalla freestyle.mp4",
-        },
-      ];
 
-      let wallpaperIndex = 0;
-      const wallpaperBtn = document.getElementById("wallpaperBtn");
-      const wallpaperVideo = document.getElementById("wallpaperVideo");
+if (progressBar) {
 
-      function changeWallpaper() {
-        wallpaperIndex++;
+  progressBar.addEventListener(
+    "click",
+    (event) => {
 
-        // Go back to first wallpaper after the last one
-        if (wallpaperIndex >= WALLPAPERS.length) {
-          wallpaperIndex = 0;
-        }
+      if (
+        !playerReady
+      ) {
 
-        const wallpaper = WALLPAPERS[wallpaperIndex];
+        return;
 
-        // Image wallpaper
-        if (wallpaper.type === "image") {
-          wallpaperVideo.pause();
-          wallpaperVideo.style.display = "none";
-
-          document.body.style.backgroundImage = `url("${wallpaper.src}")`;
-
-          document.body.style.backgroundSize = "cover";
-          document.body.style.backgroundPosition = "center";
-          document.body.style.backgroundRepeat = "no-repeat";
-          document.body.style.backgroundAttachment = "fixed";
-        }
-
-        // Video wallpaper
-        else if (wallpaper.type === "video") {
-          document.body.style.backgroundImage = "none";
-
-          wallpaperVideo.src = wallpaper.src;
-          wallpaperVideo.style.display = "block";
-
-          wallpaperVideo.currentTime = 0;
-          wallpaperVideo.play().catch(() => {});
-        }
       }
 
-      wallpaperBtn.addEventListener("click", (e) => {
-        const btn = e.currentTarget;
 
-        btn.classList.add("flash");
+      const rect =
+        progressBar.getBoundingClientRect();
 
-        setTimeout(() => {
-          btn.classList.remove("flash");
-        }, 250);
 
-        changeWallpaper();
-      });
+      const percentage =
+        (
+          event.clientX -
+          rect.left
+        ) /
+        rect.width;
 
-      // ================================================================
-      // TBSM AUDIO — ADD YOUR AUDIO FILE HERE (once you have it)
-      // ================================================================
-      // How to add the audio:
-      // 1. Go to a free "audio to base64" converter website, for example:
-      //    https://base64.guru/converter/encode/audio
-      // 2. Upload your mp3 file there. It will give you a long block of
-      //    text starting with something like:
-      //       data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAAA......
-      // 3. Copy that ENTIRE text.
-      // 4. Paste it below, replacing the empty quotes "" , like this:
-      //
-      //    const TBSM_AUDIO_SRC = "data:audio/mpeg;base64,SUQzBAAAAAAA......";
-      //
-      // 5. Save and re-upload to Netlify to go live. The button will then
-      //    play your audio each time it's clicked (and pause if clicked
-      //    again while playing).
-      // ================================================================
-      const TBSM_AUDIO_SRC = "/nalla freestyle.mp4"; // 👈 paste your base64 audio here, inside the quotes
 
-      const tbsmAudioEl = document.getElementById("tbsmAudio");
-      if (TBSM_AUDIO_SRC) {
-        tbsmAudioEl.src = TBSM_AUDIO_SRC;
+      const duration =
+        player.getDuration();
+
+
+      if (
+        duration > 0
+      ) {
+
+        player.seekTo(
+          duration *
+          percentage,
+          true
+        );
+
       }
 
-      document.getElementById("tbsmAudioBtn").addEventListener("click", (e) => {
-        const btn = e.currentTarget;
-        btn.classList.add("flash");
-        setTimeout(() => btn.classList.remove("flash"), 250);
+    }
+  );
 
-        if (!TBSM_AUDIO_SRC) {
-          console.log(
-            "No TBSM audio added yet — see the TBSM_AUDIO_SRC instructions in the code.",
+}
+
+
+// ================================================================
+// SHUFFLE BUTTON
+// ================================================================
+
+const shuffleBtn =
+  document.getElementById(
+    "shuffleBtn"
+  );
+
+
+if (shuffleBtn) {
+
+  shuffleBtn.addEventListener(
+    "click",
+    (event) => {
+
+      if (
+        !playerReady ||
+        !currentPlaylist ||
+        currentPlaylist.length < 2
+      ) {
+
+        return;
+
+      }
+
+
+      const button =
+        event.currentTarget;
+
+
+      button.classList.add(
+        "flash"
+      );
+
+
+      setTimeout(() => {
+
+        button.classList.remove(
+          "flash"
+        );
+
+      }, 250);
+
+
+      let randomIndex;
+
+
+      do {
+
+        randomIndex =
+          Math.floor(
+            Math.random() *
+            currentPlaylist.length
           );
-          return;
-        }
-        if (tbsmAudioEl.paused) {
-          tbsmAudioEl.currentTime = 0;
-          tbsmAudioEl.play();
-        } else {
-          tbsmAudioEl.pause();
-        }
-      });
-    // ================================================================
+
+      }
+
+      while (
+        randomIndex ===
+        currentSongIndex
+      );
+
+
+      currentSongIndex =
+        randomIndex;
+
+
+      playExactVideo(
+        currentPlaylist[
+          randomIndex
+        ]
+      );
+
+    }
+  );
+
+}
+
+
+// ================================================================
+// UNLOCK AUDIO
+// ================================================================
+
+function unlockAudio() {
+
+  if (
+    audioUnlocked ||
+    !playerReady
+  ) {
+
+    return;
+
+  }
+
+
+  audioUnlocked =
+    true;
+
+
+  player.unMute();
+
+  player.setVolume(
+    100
+  );
+
+
+  document.removeEventListener(
+    "click",
+    unlockAudio
+  );
+
+
+  document.removeEventListener(
+    "touchstart",
+    unlockAudio
+  );
+
+}
+
+
+document.addEventListener(
+  "click",
+  unlockAudio
+);
+
+
+document.addEventListener(
+  "touchstart",
+  unlockAudio
+);
+
+
+// ================================================================
 // MUSIC LIBRARY
 // ================================================================
 
-const libraryBtn = document.getElementById("libraryBtn");
-const libraryClose = document.getElementById("libraryClose");
-const libraryOverlay = document.getElementById("libraryOverlay");
-const musicLibrary = document.getElementById("musicLibrary");
+const libraryBtn =
+  document.getElementById(
+    "libraryBtn"
+  );
+
+
+const libraryClose =
+  document.getElementById(
+    "libraryClose"
+  );
+
+
+const libraryOverlay =
+  document.getElementById(
+    "libraryOverlay"
+  );
+
+
+const musicLibrary =
+  document.getElementById(
+    "musicLibrary"
+  );
+
+
+// ================================================================
+// OPEN LIBRARY
+// ================================================================
 
 function openLibrary() {
-  musicLibrary.classList.add("open");
-  libraryOverlay.classList.add("open");
 
-  // Load album list when opening
+  if (musicLibrary) {
+
+    musicLibrary.classList.add(
+      "open"
+    );
+
+  }
+
+
+  if (libraryOverlay) {
+
+    libraryOverlay.classList.add(
+      "open"
+    );
+
+  }
+
+
+  browsingAlbumIndex =
+    currentAlbumIndex;
+
+
   renderAlbums();
+
 }
+
+
+// ================================================================
+// CLOSE LIBRARY
+// ================================================================
 
 function closeLibrary() {
-  musicLibrary.classList.remove("open");
-  libraryOverlay.classList.remove("open");
+
+  if (musicLibrary) {
+
+    musicLibrary.classList.remove(
+      "open"
+    );
+
+  }
+
+
+  if (libraryOverlay) {
+
+    libraryOverlay.classList.remove(
+      "open"
+    );
+
+  }
+
 }
 
-libraryBtn.addEventListener("click", openLibrary);
-libraryClose.addEventListener("click", closeLibrary);
-libraryOverlay.addEventListener("click", closeLibrary);
 
-// ESC key closes library
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
-    closeLibrary();
+if (libraryBtn) {
+
+  libraryBtn.addEventListener(
+    "click",
+    openLibrary
+  );
+
+}
+
+
+if (libraryClose) {
+
+  libraryClose.addEventListener(
+    "click",
+    closeLibrary
+  );
+
+}
+
+
+if (libraryOverlay) {
+
+  libraryOverlay.addEventListener(
+    "click",
+    closeLibrary
+  );
+
+}
+
+
+// ================================================================
+// ESC CLOSES LIBRARY
+// ================================================================
+
+document.addEventListener(
+  "keydown",
+  (event) => {
+
+    if (
+      event.key ===
+      "Escape"
+    ) {
+
+      closeLibrary();
+
+    }
+
   }
-});
+);
 
 
 // ================================================================
@@ -632,296 +1602,442 @@ document.addEventListener("keydown", (e) => {
 // ================================================================
 
 function renderAlbums() {
-  const albumList = document.getElementById("albumList");
 
-  if (!albumList) return;
+  const albumList =
+    document.getElementById(
+      "albumList"
+    );
 
-  albumList.innerHTML = "";
 
-  ALBUMS.forEach((album, index) => {
-    const albumItem = document.createElement("div");
+  if (!albumList) {
 
-    albumItem.className =
-      "album-item" +
-      (index === currentAlbumIndex ? " active" : "");
+    return;
 
-    albumItem.innerHTML = `
-      <span class="album-number">
-        ${String(index + 1).padStart(2, "0")}
-      </span>
-
-      <span class="album-name">
-        ${album.name}
-      </span>
-    `;
-
-    albumItem.addEventListener("click", () => {
-      selectLibraryAlbum(index);
-    });
-
-    albumList.appendChild(albumItem);
-  });
-
-  // Show current album
-  renderLibrarySongs(currentAlbumIndex);
-}
-
-// ================================================================
-// SELECT ALBUM FROM LIBRARY
-// ================================================================
-// Clicking an album ONLY browses the album.
-// It does NOT change the currently playing song.
-// ================================================================
-
-let libraryRequestId = 0;
-
-async function selectLibraryAlbum(index) {
-
-  const album = ALBUMS[index];
-
-  if (!album) return;
-
-  // This index represents the album currently being browsed
-  currentAlbumIndex = index;
-
-  // Give this request a unique ID
-  const requestId = ++libraryRequestId;
-
-  // ------------------------------------------------
-  // Update active album immediately
-  // ------------------------------------------------
-
-  document.querySelectorAll(".album-item").forEach((item, i) => {
-
-    item.classList.toggle("active", i === index);
-
-  });
-
-  // ------------------------------------------------
-  // Update album name immediately
-  // ------------------------------------------------
-
-  const albumName =
-    document.getElementById("libraryAlbumName");
-
-  if (albumName) {
-    albumName.textContent = album.name;
   }
 
-  // ------------------------------------------------
-  // Render songs
-  // ------------------------------------------------
 
-  await renderLibrarySongs(index, requestId);
+  albumList.innerHTML =
+    "";
+
+
+  ALBUMS.forEach(
+    (
+      album,
+      index
+    ) => {
+
+      const albumItem =
+        document.createElement(
+          "div"
+        );
+
+
+      albumItem.className =
+        "album-item" +
+        (
+          index ===
+          browsingAlbumIndex
+            ? " active"
+            : ""
+        );
+
+
+      albumItem.innerHTML =
+        `
+        <span class="album-number">
+          ${String(
+            index + 1
+          ).padStart(2, "0")}
+        </span>
+
+        <span class="album-name">
+          ${album.name}
+        </span>
+        `;
+
+
+      albumItem.addEventListener(
+        "click",
+        () => {
+
+          selectLibraryAlbum(
+            index
+          );
+
+        }
+      );
+
+
+      albumList.appendChild(
+        albumItem
+      );
+
+    }
+  );
+
+
+  renderLibrarySongs(
+    browsingAlbumIndex,
+    ++libraryRequestId
+  );
+
 }
 
 
 // ================================================================
-// RENDER SONGS IN MUSIC LIBRARY
+// SELECT ALBUM FOR BROWSING
 // ================================================================
 
-async function renderLibrarySongs(index, requestId) {
+function selectLibraryAlbum(
+  index
+) {
 
-  const songList =
-    document.getElementById("librarySongList");
+  const album =
+    ALBUMS[index];
 
-  const albumName =
-    document.getElementById("libraryAlbumName");
-
-  if (!songList) return;
-
-  const album = ALBUMS[index];
 
   if (!album) {
 
-    songList.innerHTML =
-      '<div class="library-empty">Select an album</div>';
-
     return;
+
   }
 
-  // ------------------------------------------------
-  // Update album name
-  // ------------------------------------------------
+
+  // IMPORTANT:
+  // This only changes browsing album.
+  // It does NOT change playing album.
+
+  browsingAlbumIndex =
+    index;
+
+
+  const requestId =
+    ++libraryRequestId;
+
+
+  document
+    .querySelectorAll(
+      ".album-item"
+    )
+    .forEach(
+      (
+        item,
+        itemIndex
+      ) => {
+
+        item.classList.toggle(
+          "active",
+          itemIndex === index
+        );
+
+      }
+    );
+
+
+  const albumName =
+    document.getElementById(
+      "libraryAlbumName"
+    );
+
 
   if (albumName) {
-    albumName.textContent = album.name;
+
+    albumName.textContent =
+      album.name;
+
   }
 
+
+  renderLibrarySongs(
+    index,
+    requestId
+  );
+
+}
+
+
+// ================================================================
+// RENDER LIBRARY SONGS
+// ================================================================
+
+async function renderLibrarySongs(
+  albumIndex,
+  requestId
+) {
+
+  const songList =
+    document.getElementById(
+      "librarySongList"
+    );
+
+
+  const albumName =
+    document.getElementById(
+      "libraryAlbumName"
+    );
+
+
+  if (!songList) {
+
+    return;
+
+  }
+
+
+  const album =
+    ALBUMS[albumIndex];
+
+
+  if (!album) {
+
+    return;
+
+  }
+
+
+  if (albumName) {
+
+    albumName.textContent =
+      album.name;
+
+  }
+
+
   // ------------------------------------------------
-  // Loading state
+  // SHOW LOADING
   // ------------------------------------------------
 
-  songList.innerHTML = `
+  songList.innerHTML =
+    `
     <div class="library-empty">
       Loading songs...
     </div>
-  `;
+    `;
+
 
   // ------------------------------------------------
-  // IMPORTANT:
-  //
-  // DO NOT use the MAIN player here.
-  //
-  // The main player must continue playing the
-  // currently selected song.
+  // USE CACHE FIRST
   // ------------------------------------------------
+
+  const cachedPlaylist =
+    playlistCache.get(
+      album.playlistId
+    );
+
+
+  if (
+    cachedPlaylist &&
+    cachedPlaylist.length > 0
+  ) {
+
+    if (
+      requestId !==
+      libraryRequestId
+    ) {
+
+      return;
+
+    }
+
+
+    renderLibrarySongRows(
+      cachedPlaylist,
+      album,
+      songList
+    );
+
+
+    return;
+
+  }
+
+
+  // ------------------------------------------------
+  // CREATE TEMPORARY PLAYER
+  // ------------------------------------------------
+
+  const tempContainer =
+    document.createElement(
+      "div"
+    );
+
+
+  tempContainer.style.position =
+    "absolute";
+
+  tempContainer.style.width =
+    "1px";
+
+  tempContainer.style.height =
+    "1px";
+
+  tempContainer.style.opacity =
+    "0";
+
+  tempContainer.style.pointerEvents =
+    "none";
+
+
+  document.body.appendChild(
+    tempContainer
+  );
+
+
+  let tempPlayer = null;
+
 
   try {
 
-    // ------------------------------------------------
-    // Create temporary hidden player
-    // ------------------------------------------------
+    tempPlayer =
+      new YT.Player(
+        tempContainer,
+        {
 
-    const tempContainer =
-      document.createElement("div");
+          height:
+            "1",
 
-    tempContainer.style.position = "absolute";
-    tempContainer.style.width = "1px";
-    tempContainer.style.height = "1px";
-    tempContainer.style.opacity = "0";
-    tempContainer.style.pointerEvents = "none";
+          width:
+            "1",
 
-    document.body.appendChild(tempContainer);
+          playerVars: {
 
-    let tempPlayer;
+            listType:
+              "playlist",
 
-    tempPlayer = new YT.Player(tempContainer, {
+            list:
+              album.playlistId,
 
-      height: "1",
-      width: "1",
+            autoplay:
+              0,
 
-      playerVars: {
+            mute:
+              1,
 
-        listType: "playlist",
+            controls:
+              0,
 
-        list: album.playlistId,
+            playsinline:
+              1
 
-        autoplay: 0,
+          },
 
-        mute: 1,
 
-        controls: 0,
+          events: {
 
-        playsinline: 1
+            onReady:
+              function(event) {
 
-      },
+                try {
 
-      events: {
+                  if (
+                    requestId !==
+                    libraryRequestId
+                  ) {
 
-        onReady: function(event) {
+                    destroyTempPlayer(
+                      event.target,
+                      tempContainer
+                    );
 
-          try {
+                    return;
 
-            // ------------------------------------------------
-            // If user clicked another album while this one
-            // was loading, ignore this old request.
-            // ------------------------------------------------
+                  }
 
-            if (requestId !== libraryRequestId) {
 
-              try {
-                event.target.destroy();
-              } catch (e) {}
+                  const playlist =
+                    event.target
+                      .getPlaylist() ||
+                    [];
 
-              if (tempContainer.parentNode) {
-                tempContainer.parentNode.removeChild(
+
+                  // ------------------------------------------------
+                  // CACHE PLAYLIST
+                  // ------------------------------------------------
+
+                  if (
+                    playlist.length > 0
+                  ) {
+
+                    playlistCache.set(
+                      album.playlistId,
+                      playlist
+                    );
+
+                  }
+
+
+                  renderLibrarySongRows(
+                    playlist,
+                    album,
+                    songList
+                  );
+
+                }
+
+                catch (error) {
+
+                  console.error(
+                    "Library playlist error:",
+                    error
+                  );
+
+                }
+
+
+                destroyTempPlayer(
+                  event.target,
                   tempContainer
                 );
+
+              },
+
+
+            onError:
+              function() {
+
+                if (
+                  requestId ===
+                  libraryRequestId
+                ) {
+
+                  songList.innerHTML =
+                    `
+                    <div class="library-empty">
+                      Unable to load songs
+                    </div>
+                    `;
+
+                }
+
+
+                destroyTempPlayer(
+                  tempPlayer,
+                  tempContainer
+                );
+
               }
-
-              return;
-            }
-
-            const playlist =
-              event.target.getPlaylist() || [];
-
-            // ------------------------------------------------
-            // Render songs
-            // ------------------------------------------------
-
-            renderLibrarySongRows(
-              playlist,
-              album,
-              songList
-            );
-
-          } catch (error) {
-
-            console.error(
-              "Library playlist error:",
-              error
-            );
-
-            songList.innerHTML = `
-              <div class="library-empty">
-                Unable to load songs
-              </div>
-            `;
-
-          }
-
-          // ------------------------------------------------
-          // Destroy temporary player
-          // ------------------------------------------------
-
-          try {
-            event.target.destroy();
-          } catch (e) {}
-
-          if (tempContainer.parentNode) {
-
-            tempContainer.parentNode.removeChild(
-              tempContainer
-            );
-
-          }
-
-        },
-
-        onError: function() {
-
-          // Ignore old requests
-          if (requestId !== libraryRequestId) {
-            return;
-          }
-
-          songList.innerHTML = `
-            <div class="library-empty">
-              Unable to load songs
-            </div>
-          `;
-
-          try {
-            tempPlayer.destroy();
-          } catch (e) {}
-
-          if (tempContainer.parentNode) {
-
-            tempContainer.parentNode.removeChild(
-              tempContainer
-            );
 
           }
 
         }
+      );
 
-      }
+  }
 
-    });
-
-  } catch (error) {
+  catch (error) {
 
     console.error(
-      "Could not load library playlist:",
+      "Could not load library:",
       error
     );
 
-    songList.innerHTML = `
+
+    songList.innerHTML =
+      `
       <div class="library-empty">
         Unable to load songs
       </div>
-    `;
+      `;
 
   }
 
@@ -929,7 +2045,47 @@ async function renderLibrarySongs(index, requestId) {
 
 
 // ================================================================
-// CREATE LIBRARY SONG ROWS
+// DESTROY TEMP PLAYER
+// ================================================================
+
+function destroyTempPlayer(
+  tempPlayer,
+  container
+) {
+
+  try {
+
+    if (
+      tempPlayer &&
+      typeof tempPlayer.destroy ===
+      "function"
+    ) {
+
+      tempPlayer.destroy();
+
+    }
+
+  }
+
+  catch (error) {}
+
+
+  if (
+    container &&
+    container.parentNode
+  ) {
+
+    container.parentNode.removeChild(
+      container
+    );
+
+  }
+
+}
+
+
+// ================================================================
+// RENDER LIBRARY SONG ROWS
 // ================================================================
 
 function renderLibrarySongRows(
@@ -938,195 +2094,545 @@ function renderLibrarySongRows(
   songList
 ) {
 
-  if (!playlist || playlist.length === 0) {
+  if (
+    !playlist ||
+    playlist.length === 0
+  ) {
 
-    songList.innerHTML = `
+    songList.innerHTML =
+      `
       <div class="library-empty">
         No songs found
       </div>
-    `;
+      `;
 
     return;
+
   }
 
-  // ------------------------------------------------
-  // Clear loading
-  // ------------------------------------------------
 
-  songList.innerHTML = "";
-
-  // ------------------------------------------------
-  // Create every song
-  // ------------------------------------------------
-
-  playlist.forEach((videoId, songIndex) => {
-
-    const song =
-      document.createElement("div");
-
-    song.className =
-      "library-song";
-
-    song.innerHTML = `
-
-      <div class="library-song-number">
-        ${String(songIndex + 1).padStart(2, "0")}
-      </div>
-
-      <div class="library-cover">
-
-        <img
-          src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg"
-          alt=""
-        >
-
-      </div>
-
-      <div class="library-song-info">
-
-        <div class="library-song-title">
-          Loading...
-        </div>
-
-        <div class="library-song-artist">
-          Seedhe Maut
-        </div>
-
-      </div>
-
-    `;
+  songList.innerHTML =
+    "";
 
 
-    // ============================================================
-    // SONG CLICK
-    // ============================================================
-    //
-    // THIS is the ONLY place where the main player changes.
-    // ============================================================
+  playlist.forEach(
+    (
+      videoId,
+      songIndex
+    ) => {
 
-    song.addEventListener("click", () => {
-
-      if (!playerReady || !player) {
-        return;
-      }
-
-      console.log(
-        "Playing:",
-        album.name,
-        "| Song:",
-        songIndex + 1
-      );
-
-      // ------------------------------------------------
-      // Find actual album index
-      // ------------------------------------------------
-
-      const albumIndex =
-        ALBUMS.indexOf(album);
-
-      if (albumIndex === -1) {
-        return;
-      }
-
-      // ------------------------------------------------
-      // NOW change the actual playing album
-      // ------------------------------------------------
-
-      currentAlbumIndex =
-        albumIndex;
-
-      player.loadPlaylist({
-
-        listType: "playlist",
-
-        list: album.playlistId,
-
-        index: songIndex,
-
-        startSeconds: 0
-
-      });
-
-      // ------------------------------------------------
-      // Update active album
-      // ------------------------------------------------
-
-      document
-        .querySelectorAll(".album-item")
-        .forEach((item, i) => {
-
-          item.classList.toggle(
-            "active",
-            i === albumIndex
-          );
-
-        });
-
-      // ------------------------------------------------
-      // Update album name
-      // ------------------------------------------------
-
-      const albumName =
-        document.getElementById(
-          "libraryAlbumName"
+      const song =
+        document.createElement(
+          "div"
         );
 
-      if (albumName) {
 
-        albumName.textContent =
-          album.name;
+      const isCurrentSong =
+        (
+          ALBUMS.indexOf(album) ===
+          currentAlbumIndex
+        ) &&
+        (
+          songIndex ===
+          currentSongIndex
+        );
+
+
+      song.className =
+        "library-song" +
+        (
+          isCurrentSong
+            ? " active"
+            : ""
+        );
+
+
+      song.innerHTML =
+        `
+
+        <div class="library-song-number">
+          ${String(
+            songIndex + 1
+          ).padStart(2, "0")}
+        </div>
+
+
+        <div class="library-cover">
+
+          <img
+            src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg"
+            alt=""
+          >
+
+        </div>
+
+
+        <div class="library-song-info">
+
+          <div class="library-song-title">
+            Loading...
+          </div>
+
+          <div class="library-song-artist">
+            Seedhe Maut
+          </div>
+
+        </div>
+
+        `;
+
+
+      // ============================================================
+      // CLICK EXACT SONG
+      // ============================================================
+
+      song.addEventListener(
+        "click",
+        () => {
+
+          const albumIndex =
+            ALBUMS.indexOf(
+              album
+            );
+
+
+          if (
+            albumIndex === -1
+          ) {
+
+            return;
+
+          }
+
+
+          console.log(
+            "Playing exact song:",
+            album.name,
+            songIndex,
+            videoId
+          );
+
+
+          // ------------------------------------------------
+          // SAVE PLAYING ALBUM
+          // ------------------------------------------------
+
+          currentAlbumIndex =
+            albumIndex;
+
+
+          // ------------------------------------------------
+          // SAVE COMPLETE PLAYLIST
+          // ------------------------------------------------
+
+          currentPlaylist =
+            playlist;
+
+
+          playlistCache.set(
+            album.playlistId,
+            playlist
+          );
+
+
+          // ------------------------------------------------
+          // SAVE EXACT SONG INDEX
+          // ------------------------------------------------
+
+          currentSongIndex =
+            songIndex;
+
+
+          // ------------------------------------------------
+          // PLAY EXACT VIDEO
+          // ------------------------------------------------
+
+          playExactVideo(
+            videoId
+          );
+
+
+          // ------------------------------------------------
+          // CLOSE LIBRARY
+          // ------------------------------------------------
+
+          closeLibrary();
+
+        }
+      );
+
+
+      songList.appendChild(
+        song
+      );
+
+
+      // ------------------------------------------------
+      // LOAD SONG DETAILS
+      // ------------------------------------------------
+
+      getYouTubeVideoInfo(
+        videoId
+      )
+        .then(
+          (info) => {
+
+            const titleElement =
+              song.querySelector(
+                ".library-song-title"
+              );
+
+
+            const artistElement =
+              song.querySelector(
+                ".library-song-artist"
+              );
+
+
+            if (
+              titleElement
+            ) {
+
+              titleElement.textContent =
+                info.title;
+
+            }
+
+
+            if (
+              artistElement
+            ) {
+
+              artistElement.textContent =
+                info.artist;
+
+            }
+
+          }
+        )
+        .catch(() => {});
+
+    }
+  );
+
+}
+
+
+// ================================================================
+// HIGHLIGHT CURRENT SONG
+// ================================================================
+
+function updateLibraryActiveSong(
+  index
+) {
+
+  const songs =
+    document.querySelectorAll(
+      ".library-song"
+    );
+
+
+  songs.forEach(
+    (
+      song,
+      songIndex
+    ) => {
+
+      song.classList.toggle(
+        "active",
+
+        songIndex === index &&
+        browsingAlbumIndex ===
+        currentAlbumIndex
+      );
+
+    }
+  );
+
+}
+
+
+// ================================================================
+// WALLPAPERS
+// ================================================================
+
+const WALLPAPERS = [
+
+  {
+    type: "image",
+    src: "/1.png"
+  },
+
+  {
+    type: "image",
+    src: "/2.jpg"
+  },
+
+  {
+    type: "image",
+    src: "/3.jpg"
+  },
+
+  {
+    type: "image",
+    src: "/4.jpg"
+  },
+
+  {
+    type: "image",
+    src: "/seedhemaut.jpg"
+  },
+
+  {
+    type: "video",
+    src: "/nalla freestyle.mp4"
+  }
+
+];
+
+
+let wallpaperIndex =
+  0;
+
+
+const wallpaperBtn =
+  document.getElementById(
+    "wallpaperBtn"
+  );
+
+
+const wallpaperVideo =
+  document.getElementById(
+    "wallpaperVideo"
+  );
+
+
+// ================================================================
+// CHANGE WALLPAPER
+// ================================================================
+
+function changeWallpaper() {
+
+  wallpaperIndex++;
+
+
+  if (
+    wallpaperIndex >=
+    WALLPAPERS.length
+  ) {
+
+    wallpaperIndex =
+      0;
+
+  }
+
+
+  const wallpaper =
+    WALLPAPERS[
+      wallpaperIndex
+    ];
+
+
+  // ------------------------------------------------
+  // IMAGE
+  // ------------------------------------------------
+
+  if (
+    wallpaper.type ===
+    "image"
+  ) {
+
+    if (
+      wallpaperVideo
+    ) {
+
+      wallpaperVideo.pause();
+
+      wallpaperVideo.style.display =
+        "none";
+
+    }
+
+
+    document.body.style.backgroundImage =
+      `url("${wallpaper.src}")`;
+
+
+    document.body.style.backgroundSize =
+      "cover";
+
+
+    document.body.style.backgroundPosition =
+      "center";
+
+
+    document.body.style.backgroundRepeat =
+      "no-repeat";
+
+
+    document.body.style.backgroundAttachment =
+      "fixed";
+
+  }
+
+
+  // ------------------------------------------------
+  // VIDEO
+  // ------------------------------------------------
+
+  else if (
+    wallpaper.type ===
+    "video"
+  ) {
+
+    document.body.style.backgroundImage =
+      "none";
+
+
+    if (
+      wallpaperVideo
+    ) {
+
+      wallpaperVideo.src =
+        wallpaper.src;
+
+
+      wallpaperVideo.style.display =
+        "block";
+
+
+      wallpaperVideo.currentTime =
+        0;
+
+
+      wallpaperVideo
+        .play()
+        .catch(() => {});
+
+    }
+
+  }
+
+}
+
+
+if (wallpaperBtn) {
+
+  wallpaperBtn.addEventListener(
+    "click",
+    (event) => {
+
+      const button =
+        event.currentTarget;
+
+
+      button.classList.add(
+        "flash"
+      );
+
+
+      setTimeout(() => {
+
+        button.classList.remove(
+          "flash"
+        );
+
+      }, 250);
+
+
+      changeWallpaper();
+
+    }
+  );
+
+}
+
+
+// ================================================================
+// TBSM AUDIO
+// ================================================================
+
+const TBSM_AUDIO_SRC =
+  "/nalla freestyle.mp4";
+
+
+const tbsmAudioEl =
+  document.getElementById(
+    "tbsmAudio"
+  );
+
+
+if (
+  tbsmAudioEl &&
+  TBSM_AUDIO_SRC
+) {
+
+  tbsmAudioEl.src =
+    TBSM_AUDIO_SRC;
+
+}
+
+
+const tbsmAudioBtn =
+  document.getElementById(
+    "tbsmAudioBtn"
+  );
+
+
+if (tbsmAudioBtn) {
+
+  tbsmAudioBtn.addEventListener(
+    "click",
+    (event) => {
+
+      const button =
+        event.currentTarget;
+
+
+      button.classList.add(
+        "flash"
+      );
+
+
+      setTimeout(() => {
+
+        button.classList.remove(
+          "flash"
+        );
+
+      }, 250);
+
+
+      if (
+        !tbsmAudioEl ||
+        !TBSM_AUDIO_SRC
+      ) {
+
+        return;
 
       }
 
-      // ------------------------------------------------
-      // Close library
-      // ------------------------------------------------
 
-      closeLibrary();
+      if (
+        tbsmAudioEl.paused
+      ) {
 
-    });
-
-
-    // ------------------------------------------------
-    // Add song to list
-    // ------------------------------------------------
-
-    songList.appendChild(song);
+        tbsmAudioEl.currentTime =
+          0;
 
 
-    // ------------------------------------------------
-    // Load title / artist
-    // ------------------------------------------------
+        tbsmAudioEl
+          .play()
+          .catch(() => {});
 
-    getYouTubeVideoInfo(videoId)
-      .then(info => {
+      }
 
-        const titleElement =
-          song.querySelector(
-            ".library-song-title"
-          );
 
-        const artistElement =
-          song.querySelector(
-            ".library-song-artist"
-          );
+      else {
 
-        if (titleElement) {
+        tbsmAudioEl.pause();
 
-          titleElement.textContent =
-            info.title;
+      }
 
-        }
-
-        if (artistElement) {
-
-          artistElement.textContent =
-            info.artist;
-
-        }
-
-      });
-
-  });
-
-}
+    }
+  )};
