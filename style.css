@@ -468,6 +468,91 @@ body::before {
   background: rgba(255, 255, 255, 0.9);
 }
 /* ================================================================
+   VOLUME CONTROL
+================================================================ */
+
+.volume-control {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+
+  width: 36px;
+  height: 36px;
+
+  border-radius: 20px;
+
+  transition: width 0.35s ease;
+}
+
+/* Expand on hover */
+.volume-control:hover {
+  width: 130px;
+}
+
+/* Volume button */
+.volume-btn {
+  flex-shrink: 0;
+}
+
+/* Slider hidden initially */
+.volume-slider {
+  width: 0;
+  opacity: 0;
+
+  margin-left: 0;
+
+  cursor: pointer;
+
+  transition:
+    width 0.35s ease,
+    opacity 0.25s ease,
+    margin-left 0.35s ease;
+
+  appearance: none;
+  -webkit-appearance: none;
+
+  height: 4px;
+
+  background: rgba(255, 255, 255, 0.3);
+
+  border-radius: 10px;
+  outline: none;
+}
+
+/* Show slider */
+.volume-control:hover .volume-slider {
+  width: 80px;
+  opacity: 1;
+  margin-left: 6px;
+}
+
+/* Slider thumb */
+.volume-slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+
+  width: 12px;
+  height: 12px;
+
+  border-radius: 50%;
+
+  background: white;
+
+  cursor: pointer;
+}
+
+.volume-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+
+  border: none;
+  border-radius: 50%;
+
+  background: white;
+
+  cursor: pointer;
+}
+/* ================================================================
    SONG
 ================================================================ */
 

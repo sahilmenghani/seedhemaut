@@ -1611,7 +1611,38 @@ function unlockAudio() {
   player.setVolume(
     100
   );
+// ================================================================
+// VOLUME CONTROL
+// ================================================================
 
+const volumeSlider =
+  document.getElementById("volumeSlider");
+
+
+if (volumeSlider) {
+
+  volumeSlider.addEventListener(
+    "input",
+    () => {
+
+      if (
+        !playerReady ||
+        !player
+      ) {
+        return;
+      }
+
+
+      const volume =
+        Number(volumeSlider.value);
+
+
+      player.setVolume(volume);
+
+    }
+  );
+
+}
 
   document.removeEventListener(
     "click",
