@@ -62,8 +62,12 @@ const ALBUMS = [
     playlistId: "PLdxwh8I3IjCCa-VW3QBnQ5T-GsD2iFkUb"
   },
   {
+    name: "Single Drops",
+    playlistId: "PLFmqtYxbf4L8"
+  },
+  {
     name: "Features",
-    playlistId: "PLkEICesI2qi4XQwD9IxUNXzRgmMnJ_ucE"
+    playlistId: "PLfV8lh2hpJBg"
   }
 ];
 
