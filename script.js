@@ -7,9 +7,7 @@ function updateTime() {
 
   if (!timeElement) return;
 
-  const now = new Date();
-
-  timeElement.textContent = now.toLocaleTimeString("en-IN", {
+  timeElement.textContent = new Date().toLocaleTimeString("en-IN", {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
@@ -27,48 +25,48 @@ setInterval(updateTime, 1000);
 const ALBUMS = [
   {
     name: "Lunch Break",
-    playlistId: "PLaT0GyWvzyqgkGtIG6WmfCmpgrv2zPYMD"
+    playlistId: "PLaT0GyWvzyqgkGtIG6WmfCmpgrv2zPYMD",
   },
   {
     name: "Nayaab",
-    playlistId: "PLVhh-pNjr3-A"
+    playlistId: "PLVhh-pNjr3-A",
   },
   {
     name: "Bayaan",
-    playlistId: "PLkEICesI2qi4XQwD9IxUNXzRgmMnJ_ucE"
+    playlistId: "PLkEICesI2qi4XQwD9IxUNXzRgmMnJ_ucE",
   },
   {
     name: "न",
-    playlistId: "PLaT0GyWvzyqijYNsKTo9mna6Txzt8qovn"
+    playlistId: "PLaT0GyWvzyqijYNsKTo9mna6Txzt8qovn",
   },
   {
     name: "Shakti",
-    playlistId: "OLAK5uy_lsIzlLpNhudxplsDw5YPUrXX0chzHpNwM"
+    playlistId: "OLAK5uy_lsIzlLpNhudxplsDw5YPUrXX0chzHpNwM",
   },
   {
     name: "Kshama",
-    playlistId: "OLAK5uy_kjAh3eyV9-Lv73su7nsQ1zfxwx--IShVg"
+    playlistId: "OLAK5uy_kjAh3eyV9-Lv73su7nsQ1zfxwx--IShVg",
   },
   {
     name: "DL91",
-    playlistId: "OLAK5uy_kWDW8_A90JNXKEUgynxrBuLGh6I4Z1F0w"
+    playlistId: "OLAK5uy_kWDW8_A90JNXKEUgynxrBuLGh6I4Z1F0w",
   },
   {
     name: "EE",
-    playlistId: "PL2WhG2MTtzX6mI0Za_pL8nYAhEzinkkwT"
+    playlistId: "PL2WhG2MTtzX6mI0Za_pL8nYAhEzinkkwT",
   },
   {
     name: "Penthouse Tapes",
-    playlistId: "PLdxwh8I3IjCCa-VW3QBnQ5T-GsD2iFkUb"
+    playlistId: "PLdxwh8I3IjCCa-VW3QBnQ5T-GsD2iFkUb",
   },
   {
     name: "Single Drops",
-    playlistId: "PLFmqtYxbf4L8"
+    playlistId: "PLFmqtYxbf4L8",
   },
   {
     name: "Features",
-    playlistId: "PLfV8lh2hpJBg"
-  }
+    playlistId: "PLfV8lh2hpJBg",
+  },
 ];
 
 
@@ -82,36 +80,25 @@ let audioUnlocked = false;
 
 let progressInterval = null;
 
-// Album currently playing
 let currentAlbumIndex = 0;
-
-// Album currently being browsed in library
 let browsingAlbumIndex = 0;
 
-// Exact video currently playing
 let currentVideoId = null;
-
-// Complete playlist of currently playing album
 let currentPlaylist = [];
-
-// Current song index
 let currentSongIndex = 0;
 
-// Cached playlists
 const playlistCache = new Map();
-
-// Cached video information
 const videoInfoCache = new Map();
 
-// Prevent old library requests overwriting new requests
 let libraryRequestId = 0;
-
-// Used when loading playlists into main player
 let playlistLoadRequestId = 0;
+let searchRequestId = 0;
+
+let isLoadingAllPlaylists = false;
 
 
 // ================================================================
-// LOAD YOUTUBE IFRAME API
+// LOAD YOUTUBE API
 // ================================================================
 
 const youtubeScript = document.createElement("script");
@@ -123,7 +110,7 @@ document.head.appendChild(youtubeScript);
 
 
 // ================================================================
-// CREATE YOUTUBE PLAYER
+// CREATE PLAYER
 // ================================================================
 
 function onYouTubeIframeAPIReady() {
@@ -146,22 +133,19 @@ function onYouTubeIframeAPIReady() {
 
       controls: 0,
 
-      playsinline: 1
+      playsinline: 1,
 
     },
 
     events: {
 
-      onReady:
-        onPlayerReady,
+      onReady: onPlayerReady,
 
-      onStateChange:
-        onPlayerStateChange,
+      onStateChange: onPlayerStateChange,
 
-      onError:
-        onPlayerError
+      onError: onPlayerError,
 
-    }
+    },
 
   });
 
@@ -181,7 +165,6 @@ function onPlayerReady(event) {
 
   event.target.mute();
 
-  // Get initial playlist
   waitForPlaylist(
     ALBUMS[currentAlbumIndex].playlistId,
     0
@@ -209,18 +192,13 @@ function onPlayerError(event) {
 
 
 // ================================================================
-// PLAYER STATE CHANGE
+// PLAYER STATE
 // ================================================================
 
 function onPlayerStateChange(event) {
 
-  const state =
-    event.data;
+  const state = event.data;
 
-
-  // ------------------------------------------------
-  // PLAYING
-  // ------------------------------------------------
 
   if (
     state ===
@@ -238,10 +216,6 @@ function onPlayerStateChange(event) {
   }
 
 
-  // ------------------------------------------------
-  // PAUSED
-  // ------------------------------------------------
-
   if (
     state ===
     YT.PlayerState.PAUSED
@@ -254,10 +228,6 @@ function onPlayerStateChange(event) {
   }
 
 
-  // ------------------------------------------------
-  // ENDED
-  // ------------------------------------------------
-
   if (
     state ===
     YT.PlayerState.ENDED
@@ -269,10 +239,6 @@ function onPlayerStateChange(event) {
 
   }
 
-
-  // ------------------------------------------------
-  // CUED
-  // ------------------------------------------------
 
   if (
     state ===
@@ -300,7 +266,7 @@ function waitForPlaylist(
 
   let attempts = 0;
 
-  const maxAttempts = 20;
+  const maxAttempts = 40;
 
 
   const interval =
@@ -309,7 +275,6 @@ function waitForPlaylist(
       attempts++;
 
 
-      // Ignore old request
       if (
         requestId !==
         playlistLoadRequestId
@@ -335,7 +300,6 @@ function waitForPlaylist(
           clearInterval(interval);
 
 
-          // Cache playlist
           playlistCache.set(
             playlistId,
             playlist
@@ -346,7 +310,6 @@ function waitForPlaylist(
             playlist;
 
 
-          // Prevent invalid index
           if (
             songIndex >=
             playlist.length
@@ -361,7 +324,6 @@ function waitForPlaylist(
             songIndex;
 
 
-          // Play requested song
           playExactVideo(
             playlist[songIndex]
           );
@@ -411,27 +373,14 @@ function loadAlbumForPlayback(
   if (
     !playerReady ||
     !player
-  ) {
-
-    return;
-
-  }
+  ) return;
 
 
   const album =
     ALBUMS[albumIndex];
 
 
-  if (!album) {
-
-    console.error(
-      "Invalid album:",
-      albumIndex
-    );
-
-    return;
-
-  }
+  if (!album) return;
 
 
   currentAlbumIndex =
@@ -443,10 +392,6 @@ function loadAlbumForPlayback(
       album.playlistId
     );
 
-
-  // ------------------------------------------------
-  // PLAYLIST ALREADY CACHED
-  // ------------------------------------------------
 
   if (
     cachedPlaylist &&
@@ -482,10 +427,6 @@ function loadAlbumForPlayback(
   }
 
 
-  // ------------------------------------------------
-  // LOAD PLAYLIST FROM YOUTUBE
-  // ------------------------------------------------
-
   player.loadPlaylist({
 
     listType:
@@ -496,7 +437,7 @@ function loadAlbumForPlayback(
 
     index: 0,
 
-    startSeconds: 0
+    startSeconds: 0,
 
   });
 
@@ -519,17 +460,7 @@ function playExactVideo(videoId) {
     !playerReady ||
     !player ||
     !videoId
-  ) {
-
-    return;
-
-  }
-
-
-  console.log(
-    "Playing exact video:",
-    videoId
-  );
+  ) return;
 
 
   currentVideoId =
@@ -541,14 +472,10 @@ function playExactVideo(videoId) {
     videoId:
       videoId,
 
-    startSeconds: 0
+    startSeconds: 0,
 
   });
 
-
-  // ------------------------------------------------
-  // UPDATE UI IMMEDIATELY
-  // ------------------------------------------------
 
   const albumArt =
     document.getElementById(
@@ -586,7 +513,7 @@ function playExactVideo(videoId) {
 
 
 // ================================================================
-// PLAY NEXT SONG
+// NEXT SONG
 // ================================================================
 
 function playNextSong() {
@@ -594,16 +521,8 @@ function playNextSong() {
   if (
     !currentPlaylist ||
     currentPlaylist.length === 0
-  ) {
+  ) return;
 
-    return;
-
-  }
-
-
-  // ------------------------------------------------
-  // NEXT SONG IN SAME ALBUM
-  // ------------------------------------------------
 
   if (
     currentSongIndex <
@@ -612,44 +531,22 @@ function playNextSong() {
 
     currentSongIndex++;
 
-
     playExactVideo(
       currentPlaylist[
         currentSongIndex
       ]
     );
 
-
     return;
 
   }
 
-
-  // ------------------------------------------------
-  // CURRENT ALBUM FINISHED
-  // ------------------------------------------------
 
   const nextAlbumIndex =
     (
       currentAlbumIndex + 1
     ) %
     ALBUMS.length;
-
-
-  console.log(
-    "Album finished:",
-    ALBUMS[
-      currentAlbumIndex
-    ].name
-  );
-
-
-  console.log(
-    "Starting next album:",
-    ALBUMS[
-      nextAlbumIndex
-    ].name
-  );
 
 
   loadAlbumForPlayback(
@@ -659,8 +556,9 @@ function playNextSong() {
 
 }
 
+
 // ================================================================
-// PLAY PREVIOUS SONG
+// PREVIOUS SONG
 // ================================================================
 
 function playPreviousSong() {
@@ -670,35 +568,25 @@ function playPreviousSong() {
     !player ||
     !currentPlaylist ||
     currentPlaylist.length === 0
+  ) return;
+
+
+  if (
+    currentSongIndex > 0
   ) {
-
-    return;
-
-  }
-
-
-  // ------------------------------------------------
-  // IF NOT FIRST SONG → PLAY PREVIOUS SONG
-  // ------------------------------------------------
-
-  if (currentSongIndex > 0) {
 
     currentSongIndex--;
 
-
     playExactVideo(
-      currentPlaylist[currentSongIndex]
+      currentPlaylist[
+        currentSongIndex
+      ]
     );
-
 
     return;
 
   }
 
-
-  // ------------------------------------------------
-  // IF FIRST SONG → GO TO PREVIOUS ALBUM
-  // ------------------------------------------------
 
   const previousAlbumIndex =
     (
@@ -709,17 +597,9 @@ function playPreviousSong() {
 
 
   const previousAlbum =
-    ALBUMS[previousAlbumIndex];
-
-
-  console.log(
-    "Going to previous album:",
-    previousAlbum.name
-  );
-
-
-  currentAlbumIndex =
-    previousAlbumIndex;
+    ALBUMS[
+      previousAlbumIndex
+    ];
 
 
   const cachedPlaylist =
@@ -728,9 +608,9 @@ function playPreviousSong() {
     );
 
 
-  // ------------------------------------------------
-  // PREVIOUS ALBUM ALREADY CACHED
-  // ------------------------------------------------
+  currentAlbumIndex =
+    previousAlbumIndex;
+
 
   if (
     cachedPlaylist &&
@@ -739,7 +619,6 @@ function playPreviousSong() {
 
     currentPlaylist =
       cachedPlaylist;
-
 
     currentSongIndex =
       currentPlaylist.length - 1;
@@ -751,135 +630,21 @@ function playPreviousSong() {
       ]
     );
 
-
     return;
 
   }
 
 
-  // ------------------------------------------------
-  // LOAD PREVIOUS ALBUM
-  // ------------------------------------------------
-
-  player.loadPlaylist({
-
-    listType:
-      "playlist",
-
-    list:
-      previousAlbum.playlistId,
-
-    index:
-      0,
-
-    startSeconds:
-      0
-
-  });
-
-
-  // Wait until playlist loads
-  const requestId =
-    ++playlistLoadRequestId;
-
-
-  let attempts =
-    0;
-
-
-  const interval =
-    setInterval(() => {
-
-      attempts++;
-
-
-      // Ignore old requests
-      if (
-        requestId !==
-        playlistLoadRequestId
-      ) {
-
-        clearInterval(interval);
-
-        return;
-
-      }
-
-
-      try {
-
-        const playlist =
-          player.getPlaylist() || [];
-
-
-        if (
-          playlist.length > 0
-        ) {
-
-          clearInterval(interval);
-
-
-          playlistCache.set(
-            previousAlbum.playlistId,
-            playlist
-          );
-
-
-          currentPlaylist =
-            playlist;
-
-
-          // LAST SONG OF PREVIOUS ALBUM
-          currentSongIndex =
-            playlist.length - 1;
-
-
-          playExactVideo(
-            playlist[
-              currentSongIndex
-            ]
-          );
-
-
-          return;
-
-        }
-
-
-        if (
-          attempts >= 40
-        ) {
-
-          clearInterval(interval);
-
-
-          console.error(
-            "Could not load previous album"
-          );
-
-        }
-
-      }
-
-      catch (error) {
-
-        console.error(
-          "Previous song error:",
-          error
-        );
-
-
-        clearInterval(interval);
-
-      }
-
-    }, 150);
+  loadAlbumForPlayback(
+    previousAlbumIndex,
+    0
+  );
 
 }
 
 
 // ================================================================
-// SYNC CURRENT VIDEO WITH PLAYLIST
+// SYNC SONG
 // ================================================================
 
 function syncCurrentSongWithVideo() {
@@ -887,11 +652,9 @@ function syncCurrentSongWithVideo() {
   if (
     !currentVideoId ||
     !currentPlaylist
-  ) {
+  ) return;
 
-    return;
 
-  }
   const index =
     currentPlaylist.indexOf(
       currentVideoId
@@ -911,7 +674,7 @@ function syncCurrentSongWithVideo() {
 
 
 // ================================================================
-// UPDATE PLAYING UI
+// PLAYING UI
 // ================================================================
 
 function setPlayingUI(isPlaying) {
@@ -920,7 +683,6 @@ function setPlayingUI(isPlaying) {
     document.getElementById(
       "playIcon"
     );
-
 
   const disc =
     document.getElementById(
@@ -931,32 +693,16 @@ function setPlayingUI(isPlaying) {
   if (
     !playIcon ||
     !disc
-  ) {
-
-    return;
-
-  }
+  ) return;
 
 
   if (isPlaying) {
 
     playIcon.innerHTML =
       `
-      <rect
-        x="6"
-        y="5"
-        width="4"
-        height="14"
-      ></rect>
-
-      <rect
-        x="14"
-        y="5"
-        width="4"
-        height="14"
-      ></rect>
+      <rect x="6" y="5" width="4" height="14"></rect>
+      <rect x="14" y="5" width="4" height="14"></rect>
       `;
-
 
     disc.classList.add(
       "spinning"
@@ -964,16 +710,12 @@ function setPlayingUI(isPlaying) {
 
   }
 
-
   else {
 
     playIcon.innerHTML =
       `
-      <path
-        d="M8 5v14l11-7z"
-      ></path>
+      <path d="M8 5v14l11-7z"></path>
       `;
-
 
     disc.classList.remove(
       "spinning"
@@ -985,7 +727,7 @@ function setPlayingUI(isPlaying) {
 
 
 // ================================================================
-// UPDATE NOW PLAYING INFORMATION
+// NOW PLAYING INFO
 // ================================================================
 
 function updateNowPlayingInfo() {
@@ -993,11 +735,7 @@ function updateNowPlayingInfo() {
   if (
     !playerReady ||
     !player
-  ) {
-
-    return;
-
-  }
+  ) return;
 
 
   try {
@@ -1130,18 +868,13 @@ function startProgressLoop() {
       if (
         !playerReady ||
         !player
-      ) {
-
-        return;
-
-      }
+      ) return;
 
 
       try {
 
         const duration =
           player.getDuration();
-
 
         const currentTime =
           player.getCurrentTime();
@@ -1164,17 +897,11 @@ function startProgressLoop() {
           progressFill
         ) {
 
-          const percentage =
-            (
+          progressFill.style.width =
+            `${(
               currentTime /
               duration
-            ) *
-            100;
-
-
-          progressFill.style.width =
-            percentage +
-            "%";
+            ) * 100}%`;
 
         }
 
@@ -1206,30 +933,6 @@ function startProgressLoop() {
 
         }
 
-
-        else if (
-          data &&
-          data.title
-        ) {
-
-          const trackTitle =
-            document.getElementById(
-              "trackTitle"
-            );
-
-
-          if (
-            trackTitle &&
-            trackTitle.textContent ===
-            "Loading…"
-          ) {
-
-            updateNowPlayingInfo();
-
-          }
-
-        }
-
       }
 
       catch (error) {}
@@ -1240,7 +943,7 @@ function startProgressLoop() {
 
 
 // ================================================================
-// GET YOUTUBE VIDEO INFORMATION
+// VIDEO INFORMATION
 // ================================================================
 
 async function getYouTubeVideoInfo(
@@ -1294,7 +997,7 @@ async function getYouTubeVideoInfo(
         "Seedhe Maut",
 
       thumbnail:
-        `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
+        `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
 
     };
 
@@ -1311,12 +1014,6 @@ async function getYouTubeVideoInfo(
 
   catch (error) {
 
-    console.error(
-      "Could not load video information:",
-      videoId
-    );
-
-
     return {
 
       title:
@@ -1326,7 +1023,7 @@ async function getYouTubeVideoInfo(
         "Seedhe Maut",
 
       thumbnail:
-        `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
+        `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
 
     };
 
@@ -1344,6 +1041,28 @@ const playBtn =
     "playBtn"
   );
 
+const prevBtn =
+  document.getElementById(
+    "prevBtn"
+  );
+
+const nextBtn =
+  document.getElementById(
+    "nextBtn"
+  );
+
+const progressBar =
+  document.getElementById(
+    "progressBar"
+  );
+
+const shuffleBtn =
+  document.getElementById(
+    "shuffleBtn"
+  );
+
+
+// PLAY
 
 if (playBtn) {
 
@@ -1351,21 +1070,11 @@ if (playBtn) {
     "click",
     () => {
 
-      if (
-        !playerReady
-      ) {
-
-        return;
-
-      }
-
-
-      const state =
-        player.getPlayerState();
+      if (!playerReady) return;
 
 
       if (
-        state ===
+        player.getPlayerState() ===
         YT.PlayerState.PLAYING
       ) {
 
@@ -1385,81 +1094,31 @@ if (playBtn) {
 }
 
 
-// ================================================================
-// PREVIOUS BUTTON
-// ================================================================
-
-const prevBtn =
-  document.getElementById(
-    "prevBtn"
-  );
-
+// PREVIOUS
 
 if (prevBtn) {
 
   prevBtn.addEventListener(
     "click",
-    () => {
-
-      if (
-        !playerReady
-      ) {
-
-        return;
-
-      }
-
-
-      playPreviousSong();
-
-    }
+    playPreviousSong
   );
 
 }
 
 
-// ================================================================
-// NEXT BUTTON
-// ================================================================
-
-const nextBtn =
-  document.getElementById(
-    "nextBtn"
-  );
-
+// NEXT
 
 if (nextBtn) {
 
   nextBtn.addEventListener(
     "click",
-    () => {
-
-      if (
-        !playerReady
-      ) {
-
-        return;
-
-      }
-
-
-      playNextSong();
-
-    }
+    playNextSong
   );
 
 }
 
 
-// ================================================================
-// PROGRESS BAR CLICK
-// ================================================================
-
-const progressBar =
-  document.getElementById(
-    "progressBar"
-  );
-
+// PROGRESS CLICK
 
 if (progressBar) {
 
@@ -1467,13 +1126,7 @@ if (progressBar) {
     "click",
     (event) => {
 
-      if (
-        !playerReady
-      ) {
-
-        return;
-
-      }
+      if (!playerReady) return;
 
 
       const rect =
@@ -1510,49 +1163,18 @@ if (progressBar) {
 }
 
 
-// ================================================================
-// SHUFFLE BUTTON
-// ================================================================
-
-const shuffleBtn =
-  document.getElementById(
-    "shuffleBtn"
-  );
-
+// SHUFFLE
 
 if (shuffleBtn) {
 
   shuffleBtn.addEventListener(
     "click",
-    (event) => {
+    () => {
 
       if (
-        !playerReady ||
         !currentPlaylist ||
         currentPlaylist.length < 2
-      ) {
-
-        return;
-
-      }
-
-
-      const button =
-        event.currentTarget;
-
-
-      button.classList.add(
-        "flash"
-      );
-
-
-      setTimeout(() => {
-
-        button.classList.remove(
-          "flash"
-        );
-
-      }, 250);
+      ) return;
 
 
       let randomIndex;
@@ -1591,7 +1213,7 @@ if (shuffleBtn) {
 
 
 // ================================================================
-// UNLOCK AUDIO
+// AUDIO UNLOCK
 // ================================================================
 
 function unlockAudio() {
@@ -1599,11 +1221,7 @@ function unlockAudio() {
   if (
     audioUnlocked ||
     !playerReady
-  ) {
-
-    return;
-
-  }
+  ) return;
 
 
   audioUnlocked =
@@ -1612,41 +1230,8 @@ function unlockAudio() {
 
   player.unMute();
 
-  player.setVolume(
-    100
-  );
-// ================================================================
-// VOLUME CONTROL
-// ================================================================
+  player.setVolume(100);
 
-const volumeSlider =
-  document.getElementById("volumeSlider");
-
-
-if (volumeSlider) {
-
-  volumeSlider.addEventListener(
-    "input",
-    () => {
-
-      if (
-        !playerReady ||
-        !player
-      ) {
-        return;
-      }
-
-
-      const volume =
-        Number(volumeSlider.value);
-
-
-      player.setVolume(volume);
-
-    }
-  );
-
-}
 
   document.removeEventListener(
     "click",
@@ -1667,7 +1252,6 @@ document.addEventListener(
   unlockAudio
 );
 
-
 document.addEventListener(
   "touchstart",
   unlockAudio
@@ -1675,7 +1259,41 @@ document.addEventListener(
 
 
 // ================================================================
-// MUSIC LIBRARY
+// VOLUME
+// ================================================================
+
+const volumeSlider =
+  document.getElementById(
+    "volumeSlider"
+  );
+
+
+if (volumeSlider) {
+
+  volumeSlider.addEventListener(
+    "input",
+    () => {
+
+      if (
+        !playerReady ||
+        !player
+      ) return;
+
+
+      player.setVolume(
+        Number(
+          volumeSlider.value
+        )
+      );
+
+    }
+  );
+
+}
+
+
+// ================================================================
+// MUSIC LIBRARY ELEMENTS
 // ================================================================
 
 const libraryBtn =
@@ -1683,22 +1301,34 @@ const libraryBtn =
     "libraryBtn"
   );
 
-
 const libraryClose =
   document.getElementById(
     "libraryClose"
   );
-
 
 const libraryOverlay =
   document.getElementById(
     "libraryOverlay"
   );
 
-
 const musicLibrary =
   document.getElementById(
     "musicLibrary"
+  );
+
+const librarySearchBtn =
+  document.getElementById(
+    "librarySearchBtn"
+  );
+
+const librarySearchBox =
+  document.getElementById(
+    "librarySearchBox"
+  );
+
+const librarySearch =
+  document.getElementById(
+    "librarySearch"
   );
 
 
@@ -1732,6 +1362,12 @@ function openLibrary() {
 
   renderAlbums();
 
+
+  // Load all playlists in background
+  // This makes global search work across all albums
+
+  loadAllPlaylistsForSearch();
+
 }
 
 
@@ -1758,8 +1394,29 @@ function closeLibrary() {
 
   }
 
+
+  if (librarySearchBox) {
+
+    librarySearchBox.classList.remove(
+      "open"
+    );
+
+  }
+
+
+  if (librarySearch) {
+
+    librarySearch.value =
+      "";
+
+  }
+
 }
 
+
+// ================================================================
+// LIBRARY BUTTON EVENTS
+// ================================================================
 
 if (libraryBtn) {
 
@@ -1791,10 +1448,6 @@ if (libraryOverlay) {
 }
 
 
-// ================================================================
-// ESC CLOSES LIBRARY
-// ================================================================
-
 document.addEventListener(
   "keydown",
   (event) => {
@@ -1824,11 +1477,7 @@ function renderAlbums() {
     );
 
 
-  if (!albumList) {
-
-    return;
-
-  }
+  if (!albumList) return;
 
 
   albumList.innerHTML =
@@ -1836,10 +1485,7 @@ function renderAlbums() {
 
 
   ALBUMS.forEach(
-    (
-      album,
-      index
-    ) => {
+    (album, index) => {
 
       const albumItem =
         document.createElement(
@@ -1900,27 +1546,12 @@ function renderAlbums() {
 
 
 // ================================================================
-// SELECT ALBUM FOR BROWSING
+// SELECT LIBRARY ALBUM
 // ================================================================
 
 function selectLibraryAlbum(
   index
 ) {
-
-  const album =
-    ALBUMS[index];
-
-
-  if (!album) {
-
-    return;
-
-  }
-
-
-  // IMPORTANT:
-  // This only changes browsing album.
-  // It does NOT change playing album.
 
   browsingAlbumIndex =
     index;
@@ -1949,16 +1580,10 @@ function selectLibraryAlbum(
     );
 
 
-  const albumName =
-    document.getElementById(
-      "libraryAlbumName"
-    );
+  if (librarySearch) {
 
-
-  if (albumName) {
-
-    albumName.textContent =
-      album.name;
+    librarySearch.value =
+      "";
 
   }
 
@@ -1985,29 +1610,20 @@ async function renderLibrarySongs(
       "librarySongList"
     );
 
-
   const albumName =
     document.getElementById(
       "libraryAlbumName"
     );
 
 
-  if (!songList) {
-
-    return;
-
-  }
+  if (!songList) return;
 
 
   const album =
     ALBUMS[albumIndex];
 
 
-  if (!album) {
-
-    return;
-
-  }
+  if (!album) return;
 
 
   if (albumName) {
@@ -2017,22 +1633,6 @@ async function renderLibrarySongs(
 
   }
 
-
-  // ------------------------------------------------
-  // SHOW LOADING
-  // ------------------------------------------------
-
-  songList.innerHTML =
-    `
-    <div class="library-empty">
-      Loading songs...
-    </div>
-    `;
-
-
-  // ------------------------------------------------
-  // USE CACHE FIRST
-  // ------------------------------------------------
 
   const cachedPlaylist =
     playlistCache.get(
@@ -2045,207 +1645,51 @@ async function renderLibrarySongs(
     cachedPlaylist.length > 0
   ) {
 
-    if (
-      requestId !==
-      libraryRequestId
-    ) {
-
-      return;
-
-    }
-
-
     renderLibrarySongRows(
       cachedPlaylist,
       album,
       songList
     );
 
-
     return;
 
   }
 
 
-  // ------------------------------------------------
-  // CREATE TEMPORARY PLAYER
-  // ------------------------------------------------
+  songList.innerHTML =
+    `
+    <div class="library-empty">
+      Loading songs...
+    </div>
+    `;
 
-  const tempContainer =
-    document.createElement(
-      "div"
+
+  const playlist =
+    await loadPlaylistWithTempPlayer(
+      album.playlistId
     );
 
 
-  tempContainer.style.position =
-    "absolute";
-
-  tempContainer.style.width =
-    "1px";
-
-  tempContainer.style.height =
-    "1px";
-
-  tempContainer.style.opacity =
-    "0";
-
-  tempContainer.style.pointerEvents =
-    "none";
+  if (
+    requestId !==
+    libraryRequestId
+  ) return;
 
 
-  document.body.appendChild(
-    tempContainer
-  );
+  if (
+    playlist &&
+    playlist.length > 0
+  ) {
 
-
-  let tempPlayer = null;
-
-
-  try {
-
-    tempPlayer =
-      new YT.Player(
-        tempContainer,
-        {
-
-          height:
-            "1",
-
-          width:
-            "1",
-
-          playerVars: {
-
-            listType:
-              "playlist",
-
-            list:
-              album.playlistId,
-
-            autoplay:
-              0,
-
-            mute:
-              1,
-
-            controls:
-              0,
-
-            playsinline:
-              1
-
-          },
-
-
-          events: {
-
-            onReady:
-              function(event) {
-
-                try {
-
-                  if (
-                    requestId !==
-                    libraryRequestId
-                  ) {
-
-                    destroyTempPlayer(
-                      event.target,
-                      tempContainer
-                    );
-
-                    return;
-
-                  }
-
-
-                  const playlist =
-                    event.target
-                      .getPlaylist() ||
-                    [];
-
-
-                  // ------------------------------------------------
-                  // CACHE PLAYLIST
-                  // ------------------------------------------------
-
-                  if (
-                    playlist.length > 0
-                  ) {
-
-                    playlistCache.set(
-                      album.playlistId,
-                      playlist
-                    );
-
-                  }
-
-
-                  renderLibrarySongRows(
-                    playlist,
-                    album,
-                    songList
-                  );
-
-                }
-
-                catch (error) {
-
-                  console.error(
-                    "Library playlist error:",
-                    error
-                  );
-
-                }
-
-
-                destroyTempPlayer(
-                  event.target,
-                  tempContainer
-                );
-
-              },
-
-
-            onError:
-              function() {
-
-                if (
-                  requestId ===
-                  libraryRequestId
-                ) {
-
-                  songList.innerHTML =
-                    `
-                    <div class="library-empty">
-                      Unable to load songs
-                    </div>
-                    `;
-
-                }
-
-
-                destroyTempPlayer(
-                  tempPlayer,
-                  tempContainer
-                );
-
-              }
-
-          }
-
-        }
-      );
+    renderLibrarySongRows(
+      playlist,
+      album,
+      songList
+    );
 
   }
 
-  catch (error) {
-
-    console.error(
-      "Could not load library:",
-      error
-    );
-
+  else {
 
     songList.innerHTML =
       `
@@ -2260,47 +1704,315 @@ async function renderLibrarySongs(
 
 
 // ================================================================
-// DESTROY TEMP PLAYER
+// TEMP PLAYER PLAYLIST LOADER
 // ================================================================
 
-function destroyTempPlayer(
-  tempPlayer,
-  container
+function loadPlaylistWithTempPlayer(
+  playlistId
 ) {
 
-  try {
+  return new Promise(
+    (resolve) => {
 
-    if (
-      tempPlayer &&
-      typeof tempPlayer.destroy ===
-      "function"
-    ) {
+      if (
+        playlistCache.has(
+          playlistId
+        )
+      ) {
 
-      tempPlayer.destroy();
+        resolve(
+          playlistCache.get(
+            playlistId
+          )
+        );
+
+        return;
+
+      }
+
+
+      const container =
+        document.createElement(
+          "div"
+        );
+
+
+      container.style.position =
+        "absolute";
+
+      container.style.width =
+        "1px";
+
+      container.style.height =
+        "1px";
+
+      container.style.opacity =
+        "0";
+
+      container.style.pointerEvents =
+        "none";
+
+
+      document.body.appendChild(
+        container
+      );
+
+
+      let resolved =
+        false;
+
+
+      const finish =
+        (
+          playlist,
+          tempPlayer
+        ) => {
+
+          if (resolved) return;
+
+          resolved = true;
+
+
+          if (
+            playlist &&
+            playlist.length > 0
+          ) {
+
+            playlistCache.set(
+              playlistId,
+              playlist
+            );
+
+          }
+
+
+          try {
+
+            if (
+              tempPlayer &&
+              typeof tempPlayer.destroy ===
+              "function"
+            ) {
+
+              tempPlayer.destroy();
+
+            }
+
+          }
+
+          catch (error) {}
+
+
+          if (
+            container.parentNode
+          ) {
+
+            container.parentNode.removeChild(
+              container
+            );
+
+          }
+
+
+          resolve(
+            playlist || []
+          );
+
+        };
+
+
+      try {
+
+        const tempPlayer =
+          new YT.Player(
+            container,
+            {
+
+              height: "1",
+              width: "1",
+
+              playerVars: {
+
+                listType:
+                  "playlist",
+
+                list:
+                  playlistId,
+
+                autoplay:
+                  0,
+
+                mute:
+                  1,
+
+                controls:
+                  0,
+
+              },
+
+
+              events: {
+
+                onReady:
+                  function(event) {
+
+                    let attempts = 0;
+
+
+                    const check =
+                      setInterval(() => {
+
+                        attempts++;
+
+
+                        try {
+
+                          const playlist =
+                            event.target.getPlaylist() ||
+                            [];
+
+
+                          if (
+                            playlist.length > 0
+                          ) {
+
+                            clearInterval(
+                              check
+                            );
+
+                            finish(
+                              playlist,
+                              event.target
+                            );
+
+                          }
+
+
+                          else if (
+                            attempts >= 30
+                          ) {
+
+                            clearInterval(
+                              check
+                            );
+
+                            finish(
+                              [],
+                              event.target
+                            );
+
+                          }
+
+                        }
+
+                        catch (error) {
+
+                          clearInterval(
+                            check
+                          );
+
+                          finish(
+                            [],
+                            event.target
+                          );
+
+                        }
+
+                      }, 150);
+
+                  },
+
+
+                onError:
+                  function() {
+
+                    finish(
+                      [],
+                      null
+                    );
+
+                  },
+
+              },
+
+            }
+          );
+
+      }
+
+      catch (error) {
+
+        resolve([]);
+
+      }
 
     }
-
-  }
-
-  catch (error) {}
-
-
-  if (
-    container &&
-    container.parentNode
-  ) {
-
-    container.parentNode.removeChild(
-      container
-    );
-
-  }
+  );
 
 }
 
 
 // ================================================================
-// RENDER LIBRARY SONG ROWS
+// LOAD ALL PLAYLISTS FOR GLOBAL SEARCH
+// ================================================================
+
+async function loadAllPlaylistsForSearch() {
+
+  if (
+    isLoadingAllPlaylists
+  ) return;
+
+
+  isLoadingAllPlaylists =
+    true;
+
+
+  try {
+
+    // Sequential loading prevents too many YouTube
+    // players from being created simultaneously.
+
+    for (
+      const album of ALBUMS
+    ) {
+
+      if (
+        playlistCache.has(
+          album.playlistId
+        )
+      ) {
+
+        continue;
+
+      }
+
+
+      await loadPlaylistWithTempPlayer(
+        album.playlistId
+      );
+
+    }
+
+  }
+
+  catch (error) {
+
+    console.error(
+      "Global playlist loading error:",
+      error
+    );
+
+  }
+
+
+  isLoadingAllPlaylists =
+    false;
+
+}
+
+
+// ================================================================
+// RENDER SONG ROWS
 // ================================================================
 
 function renderLibrarySongRows(
@@ -2342,9 +2054,15 @@ function renderLibrarySongRows(
         );
 
 
+      const albumIndex =
+        ALBUMS.indexOf(
+          album
+        );
+
+
       const isCurrentSong =
         (
-          ALBUMS.indexOf(album) ===
+          albumIndex ===
           currentAlbumIndex
         ) &&
         (
@@ -2364,13 +2082,11 @@ function renderLibrarySongRows(
 
       song.innerHTML =
         `
-
         <div class="library-song-number">
           ${String(
             songIndex + 1
           ).padStart(2, "0")}
         </div>
-
 
         <div class="library-cover">
 
@@ -2380,7 +2096,6 @@ function renderLibrarySongRows(
           >
 
         </div>
-
 
         <div class="library-song-info">
 
@@ -2393,85 +2108,19 @@ function renderLibrarySongRows(
           </div>
 
         </div>
-
         `;
 
-
-      // ============================================================
-      // CLICK EXACT SONG
-      // ============================================================
 
       song.addEventListener(
         "click",
         () => {
 
-          const albumIndex =
-            ALBUMS.indexOf(
-              album
-            );
-
-
-          if (
-            albumIndex === -1
-          ) {
-
-            return;
-
-          }
-
-
-          console.log(
-            "Playing exact song:",
-            album.name,
+          playLibrarySong(
+            albumIndex,
+            playlist,
             songIndex,
             videoId
           );
-
-
-          // ------------------------------------------------
-          // SAVE PLAYING ALBUM
-          // ------------------------------------------------
-
-          currentAlbumIndex =
-            albumIndex;
-
-
-          // ------------------------------------------------
-          // SAVE COMPLETE PLAYLIST
-          // ------------------------------------------------
-
-          currentPlaylist =
-            playlist;
-
-
-          playlistCache.set(
-            album.playlistId,
-            playlist
-          );
-
-
-          // ------------------------------------------------
-          // SAVE EXACT SONG INDEX
-          // ------------------------------------------------
-
-          currentSongIndex =
-            songIndex;
-
-
-          // ------------------------------------------------
-          // PLAY EXACT VIDEO
-          // ------------------------------------------------
-
-          playExactVideo(
-            videoId
-          );
-
-
-          // ------------------------------------------------
-          // CLOSE LIBRARY
-          // ------------------------------------------------
-
-          closeLibrary();
 
         }
       );
@@ -2481,10 +2130,6 @@ function renderLibrarySongRows(
         song
       );
 
-
-      // ------------------------------------------------
-      // LOAD SONG DETAILS
-      // ------------------------------------------------
 
       getYouTubeVideoInfo(
         videoId
@@ -2504,9 +2149,7 @@ function renderLibrarySongRows(
               );
 
 
-            if (
-              titleElement
-            ) {
+            if (titleElement) {
 
               titleElement.textContent =
                 info.title;
@@ -2514,9 +2157,7 @@ function renderLibrarySongRows(
             }
 
 
-            if (
-              artistElement
-            ) {
+            if (artistElement) {
 
               artistElement.textContent =
                 info.artist;
@@ -2524,8 +2165,7 @@ function renderLibrarySongRows(
             }
 
           }
-        )
-        .catch(() => {});
+        );
 
     }
   );
@@ -2534,7 +2174,46 @@ function renderLibrarySongRows(
 
 
 // ================================================================
-// HIGHLIGHT CURRENT SONG
+// PLAY LIBRARY SONG
+// ================================================================
+
+function playLibrarySong(
+  albumIndex,
+  playlist,
+  songIndex,
+  videoId
+) {
+
+  currentAlbumIndex =
+    albumIndex;
+
+
+  currentPlaylist =
+    playlist;
+
+
+  currentSongIndex =
+    songIndex;
+
+
+  playlistCache.set(
+    ALBUMS[albumIndex].playlistId,
+    playlist
+  );
+
+
+  playExactVideo(
+    videoId
+  );
+
+
+  closeLibrary();
+
+}
+
+
+// ================================================================
+// ACTIVE SONG
 // ================================================================
 
 function updateLibraryActiveSong(
@@ -2568,20 +2247,447 @@ function updateLibraryActiveSong(
 
 
 // ================================================================
+// SEARCH OPEN / CLOSE
+// ================================================================
+
+if (librarySearchBtn) {
+
+  librarySearchBtn.addEventListener(
+    "click",
+    () => {
+
+      if (!librarySearchBox) return;
+
+
+      librarySearchBox.classList.toggle(
+        "open"
+      );
+
+
+      if (
+        librarySearchBox.classList.contains(
+          "open"
+        )
+      ) {
+
+        setTimeout(
+          () => {
+
+            if (librarySearch) {
+
+              librarySearch.focus();
+
+            }
+
+          },
+          300
+        );
+
+      }
+
+      else if (
+        librarySearch
+      ) {
+
+        librarySearch.value =
+          "";
+
+        renderLibrarySongs(
+          browsingAlbumIndex,
+          ++libraryRequestId
+        );
+
+      }
+
+    }
+  );
+
+}
+
+
+// ================================================================
+// GET ALL SONGS
+// ================================================================
+
+function getAllCachedSongs() {
+
+  const allSongs = [];
+
+
+  ALBUMS.forEach(
+    (
+      album,
+      albumIndex
+    ) => {
+
+      const playlist =
+        playlistCache.get(
+          album.playlistId
+        );
+
+
+      if (!playlist) return;
+
+
+      playlist.forEach(
+        (
+          videoId,
+          songIndex
+        ) => {
+
+          allSongs.push({
+
+            videoId,
+
+            albumName:
+              album.name,
+
+            albumIndex,
+
+            songIndex,
+
+          });
+
+        }
+      );
+
+    }
+  );
+
+
+  return allSongs;
+
+}
+
+
+// ================================================================
+// GLOBAL SEARCH
+// ================================================================
+
+async function renderSearchResults(
+  query
+) {
+
+  const songList =
+    document.getElementById(
+      "librarySongList"
+    );
+
+  const albumName =
+    document.getElementById(
+      "libraryAlbumName"
+    );
+
+
+  if (!songList) return;
+
+
+  const searchQuery =
+    query
+      .toLowerCase()
+      .trim();
+
+
+  // EMPTY SEARCH → NORMAL ALBUM
+
+  if (!searchQuery) {
+
+    if (albumName) {
+
+      albumName.textContent =
+        ALBUMS[
+          browsingAlbumIndex
+        ].name;
+
+    }
+
+
+    renderLibrarySongs(
+      browsingAlbumIndex,
+      ++libraryRequestId
+    );
+
+    return;
+
+  }
+
+
+  const requestId =
+    ++searchRequestId;
+
+
+  // Make sure all playlists have loaded
+
+  songList.innerHTML =
+    `
+    <div class="library-empty">
+      Searching bangers 🐉...
+    </div>
+    `;
+
+
+  await loadAllPlaylistsForSearch();
+
+
+  const allSongs =
+    getAllCachedSongs();
+
+
+  // Get song information
+
+  const songsWithInfo =
+    await Promise.all(
+
+      allSongs.map(
+        async (
+          song
+        ) => {
+
+          const info =
+            await getYouTubeVideoInfo(
+              song.videoId
+            );
+
+
+          return {
+
+            ...song,
+
+            title:
+              info.title,
+
+            artist:
+              info.artist,
+
+          };
+
+        }
+      )
+
+    );
+
+
+  // Ignore outdated search
+
+  if (
+    requestId !==
+    searchRequestId
+  ) return;
+
+
+  const results =
+    songsWithInfo.filter(
+      (
+        song
+      ) => {
+
+        return (
+
+          song.title
+            .toLowerCase()
+            .includes(
+              searchQuery
+            ) ||
+
+          song.artist
+            .toLowerCase()
+            .includes(
+              searchQuery
+            ) ||
+
+          song.albumName
+            .toLowerCase()
+            .includes(
+              searchQuery
+            )
+
+        );
+
+      }
+    );
+
+
+  if (albumName) {
+
+    albumName.textContent =
+      `SEARCH RESULTS (${results.length})`;
+
+  }
+
+
+  if (
+    results.length === 0
+  ) {
+
+    songList.innerHTML =
+      `
+      <div class="library-empty">
+        No bangers found 🐉
+      </div>
+      `;
+
+    return;
+
+  }
+
+
+  songList.innerHTML =
+    "";
+
+
+  results.forEach(
+    (
+      song,
+      index
+    ) => {
+
+      const songElement =
+        document.createElement(
+          "div"
+        );
+
+
+      songElement.className =
+        "library-song";
+
+
+      songElement.innerHTML =
+        `
+        <div class="library-song-number">
+          ${String(
+            index + 1
+          ).padStart(2, "0")}
+        </div>
+
+        <div class="library-cover">
+
+          <img
+            src="https://img.youtube.com/vi/${song.videoId}/mqdefault.jpg"
+            alt=""
+          >
+
+        </div>
+
+        <div class="library-song-info">
+
+          <div class="library-song-title">
+            ${song.title}
+          </div>
+
+          <div class="library-song-artist">
+            ${song.albumName}
+          </div>
+
+        </div>
+        `;
+
+
+      songElement.addEventListener(
+        "click",
+        () => {
+
+          playSearchResult(
+            song
+          );
+
+        }
+      );
+
+
+      songList.appendChild(
+        songElement
+      );
+
+    }
+  );
+
+}
+
+
+// ================================================================
+// PLAY SEARCH RESULT
+// ================================================================
+
+function playSearchResult(
+  song
+) {
+
+  const album =
+    ALBUMS[
+      song.albumIndex
+    ];
+
+
+  if (!album) return;
+
+
+  const playlist =
+    playlistCache.get(
+      album.playlistId
+    );
+
+
+  if (
+    !playlist ||
+    playlist.length === 0
+  ) return;
+
+
+  currentAlbumIndex =
+    song.albumIndex;
+
+
+  currentPlaylist =
+    playlist;
+
+
+  currentSongIndex =
+    song.songIndex;
+
+
+  playExactVideo(
+    song.videoId
+  );
+
+
+  closeLibrary();
+
+}
+
+
+// ================================================================
+// SEARCH INPUT
+// ================================================================
+
+if (librarySearch) {
+
+  librarySearch.addEventListener(
+    "input",
+    () => {
+
+      renderSearchResults(
+        librarySearch.value
+      );
+
+    }
+  );
+
+}
+
+
+// ================================================================
 // WALLPAPERS
 // ================================================================
 
 const WALLPAPERS = [
   {
     type: "image",
-    src: "/2.jpg"
+    src: "/2.jpg",
   },
-
   {
     type: "image",
-    src: "/seedhemaut.jpg"
-  }
-
+    src: "/seedhemaut.jpg",
+  },
 ];
 
 
@@ -2594,31 +2700,19 @@ const wallpaperBtn =
     "wallpaperBtn"
   );
 
-
 const wallpaperVideo =
   document.getElementById(
     "wallpaperVideo"
   );
 
 
-// ================================================================
-// CHANGE WALLPAPER
-// ================================================================
-
 function changeWallpaper() {
 
-  wallpaperIndex++;
-
-
-  if (
-    wallpaperIndex >=
-    WALLPAPERS.length
-  ) {
-
-    wallpaperIndex =
-      0;
-
-  }
+  wallpaperIndex =
+    (
+      wallpaperIndex + 1
+    ) %
+    WALLPAPERS.length;
 
 
   const wallpaper =
@@ -2627,18 +2721,12 @@ function changeWallpaper() {
     ];
 
 
-  // ------------------------------------------------
-  // IMAGE
-  // ------------------------------------------------
-
   if (
     wallpaper.type ===
     "image"
   ) {
 
-    if (
-      wallpaperVideo
-    ) {
+    if (wallpaperVideo) {
 
       wallpaperVideo.pause();
 
@@ -2651,59 +2739,17 @@ function changeWallpaper() {
     document.body.style.backgroundImage =
       `url("${wallpaper.src}")`;
 
-
     document.body.style.backgroundSize =
       "cover";
-
 
     document.body.style.backgroundPosition =
       "center";
 
-
     document.body.style.backgroundRepeat =
       "no-repeat";
 
-
     document.body.style.backgroundAttachment =
       "fixed";
-
-  }
-
-
-  // ------------------------------------------------
-  // VIDEO
-  // ------------------------------------------------
-
-  else if (
-    wallpaper.type ===
-    "video"
-  ) {
-
-    document.body.style.backgroundImage =
-      "none";
-
-
-    if (
-      wallpaperVideo
-    ) {
-
-      wallpaperVideo.src =
-        wallpaper.src;
-
-
-      wallpaperVideo.style.display =
-        "block";
-
-
-      wallpaperVideo.currentTime =
-        0;
-
-
-      wallpaperVideo
-        .play()
-        .catch(() => {});
-
-    }
 
   }
 
@@ -2714,25 +2760,7 @@ if (wallpaperBtn) {
 
   wallpaperBtn.addEventListener(
     "click",
-    (event) => {
-
-      const button =
-        event.currentTarget;
-
-
-      button.classList.add(
-        "flash"
-      );
-
-
-      setTimeout(() => {
-
-        button.classList.remove(
-          "flash"
-        );
-
-      }, 250);
-
+    () => {
 
       changeWallpaper();
 
@@ -2777,34 +2805,12 @@ if (tbsmAudioBtn) {
 
   tbsmAudioBtn.addEventListener(
     "click",
-    (event) => {
-
-      const button =
-        event.currentTarget;
-
-
-      button.classList.add(
-        "flash"
-      );
-
-
-      setTimeout(() => {
-
-        button.classList.remove(
-          "flash"
-        );
-
-      }, 250);
-
+    () => {
 
       if (
         !tbsmAudioEl ||
         !TBSM_AUDIO_SRC
-      ) {
-
-        return;
-
-      }
+      ) return;
 
 
       if (
@@ -2814,13 +2820,11 @@ if (tbsmAudioBtn) {
         tbsmAudioEl.currentTime =
           0;
 
-
         tbsmAudioEl
           .play()
           .catch(() => {});
 
       }
-
 
       else {
 
@@ -2829,4 +2833,6 @@ if (tbsmAudioBtn) {
       }
 
     }
-  )};
+  );
+
+}

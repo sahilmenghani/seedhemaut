@@ -40,8 +40,35 @@
           <div class="library-label">MUSIC LIBRARY</div>
           <h2>Your Music</h2>
         </div>
+        <div class="library-actions">
+          <div id="librarySearchBox" class="library-search-box">
+            <input
+              type="text"
+              id="librarySearch"
+              class="library-search-input"
+              placeholder="Search Bangers 🐉"
+              autocomplete="off"
+            />
+          </div>
 
-        <button id="libraryClose" class="library-close">×</button>
+          <button
+            id="librarySearchBtn"
+            class="library-search-btn"
+            aria-label="Search"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="11" cy="11" r="6"></circle>
+              <path d="m16 16 4 4"></path>
+            </svg>
+          </button>
+
+          <button id="libraryClose" class="library-close">×</button>
+        </div>
       </div>
 
       <div class="library-content">

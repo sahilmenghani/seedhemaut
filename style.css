@@ -220,7 +220,124 @@ body::before {
 .music-library.open {
   transform: translate(-50%, 0);
 }
+/* ================================================================
+   LIBRARY SEARCH BUTTON
+================================================================ */
 
+.library-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Search button */
+
+.library-search-btn {
+  width: 42px;
+  height: 42px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  flex-shrink: 0;
+
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.library-search-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  transform: scale(1.05);
+}
+
+.library-search-btn svg {
+  width: 19px;
+  height: 19px;
+}
+
+/* ================================================================
+   SEARCH BOX
+================================================================ */
+
+.library-search-box {
+  width: 0;
+  height: 42px;
+
+  display: flex;
+  align-items: center;
+
+  overflow: hidden;
+
+  opacity: 0;
+
+  border-radius: 22px;
+
+  background: rgba(255, 255, 255, 0.06);
+
+  border: 1px solid transparent;
+
+  transition:
+    width 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.25s ease,
+    border-color 0.25s ease;
+
+  /* Makes animation feel like it opens right to left */
+  transform-origin: right;
+}
+
+/* OPEN STATE */
+
+.library-search-box.open {
+  width: 750px;
+
+  opacity: 1;
+
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Dragon */
+
+.search-dragon {
+  font-size: 16px;
+
+  margin-left: 14px;
+
+  flex-shrink: 0;
+}
+
+/* Input */
+
+.library-search-input {
+  width: 100%;
+
+  padding: 0 14px 0 9px;
+
+  background: transparent;
+
+  border: none;
+
+  outline: none;
+
+  color: white;
+
+  font-size: 13px;
+
+  font-family: inherit;
+}
+
+.library-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.55);
+}
 /* ================================================================
    HANDLE
 ================================================================ */
@@ -1210,7 +1327,9 @@ body::before {
 
     border-radius: 15px;
   }
-
+  .library-search-box.open {
+    width: 150px;
+  }
   .library-btn span {
     display: none;
   }
