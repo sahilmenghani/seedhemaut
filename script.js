@@ -162,7 +162,7 @@ window.onYouTubeIframeAPIReady =
 function onPlayerReady(event) {
 
   playerReady = true;
-
+  setupMediaSession();
   event.target.mute();
 
   waitForPlaylist(
@@ -200,33 +200,30 @@ function onPlayerStateChange(event) {
   const state = event.data;
 
 
-  if (
-    state ===
-    YT.PlayerState.PLAYING
-  ) {
+  if (state === YT.PlayerState.PLAYING) {
 
-    setPlayingUI(true);
+  setPlayingUI(true);
 
-    updateNowPlayingInfo();
+  updateMediaSessionPlaybackState("playing");
 
-    syncCurrentSongWithVideo();
+  updateNowPlayingInfo();
 
-    return;
+  syncCurrentSongWithVideo();
 
-  }
+  return;
+
+}
 
 
-  if (
-    state ===
-    YT.PlayerState.PAUSED
-  ) {
+if (state === YT.PlayerState.PAUSED) {
 
-    setPlayingUI(false);
+  setPlayingUI(false);
 
-    return;
+  updateMediaSessionPlaybackState("paused");
 
-  }
+  return;
 
+}
 
   if (
     state ===
@@ -725,7 +722,112 @@ function setPlayingUI(isPlaying) {
 
 }
 
+// ================================================================
+// MEDIA SESSION - LOCK SCREEN CONTROLS
+// ================================================================
 
+function setupMediaSession() {
+
+  if (!("mediaSession" in navigator)) {
+    console.log("Media Session API not supported");
+    return;
+  }
+
+  // PLAY
+  navigator.mediaSession.setActionHandler("play", () => {
+
+    if (playerReady && player) {
+      player.playVideo();
+    }
+
+  });
+
+  // PAUSE
+  navigator.mediaSession.setActionHandler("pause", () => {
+
+    if (playerReady && player) {
+      player.pauseVideo();
+    }
+
+  });
+
+  // NEXT SONG
+  navigator.mediaSession.setActionHandler("nexttrack", () => {
+    playNextSong();
+  });
+
+  // PREVIOUS SONG
+  navigator.mediaSession.setActionHandler("previoustrack", () => {
+    playPreviousSong();
+  });
+
+  // SEEK FORWARD / BACKWARD
+  navigator.mediaSession.setActionHandler("seekto", (details) => {
+
+    if (!playerReady || !player) return;
+
+    if (typeof details.seekTime === "number") {
+
+      player.seekTo(details.seekTime, true);
+
+    }
+
+  });
+
+}
+
+
+// ================================================================
+// UPDATE LOCK SCREEN SONG INFORMATION
+// ================================================================
+
+function updateMediaSessionInfo(data) {
+
+  if (!("mediaSession" in navigator)) return;
+  if (!data || !data.video_id) return;
+
+  const videoId = data.video_id;
+
+  // Use the existing YouTube information function.
+  getYouTubeVideoInfo(videoId).then((info) => {
+
+    // Don't display old metadata if the song has changed.
+    if (currentVideoId !== videoId) return;
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+
+      title: info.title || data.title || "Unknown Song",
+
+      artist: info.artist || data.author || "Seedhe Maut",
+
+      album: ALBUMS[currentAlbumIndex]?.name || "Seedhe Maut",
+
+      artwork: [
+        {
+          src: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+          sizes: "480x360",
+          type: "image/jpeg"
+        }
+      ]
+
+    });
+
+  });
+
+}
+
+
+// ================================================================
+// UPDATE LOCK SCREEN PLAYBACK STATE
+// ================================================================
+
+function updateMediaSessionPlaybackState(state) {
+
+  if (!("mediaSession" in navigator)) return;
+
+  navigator.mediaSession.playbackState = state;
+
+}
 // ================================================================
 // NOW PLAYING INFO
 // ================================================================
@@ -751,7 +853,7 @@ function updateNowPlayingInfo() {
 
       currentVideoId =
         data.video_id;
-
+updateMediaSessionInfo(data);
 
       const trackTitle =
         document.getElementById(
